@@ -1,0 +1,95 @@
+#!ipxe
+
+#check platform (pcbios or efi)
+
+echo Platform: ${platform}
+
+set menu-timeout 3000
+
+dhcp
+
+#isset ${next-server} || set next-server 192.168.1.2  #自行指定服务器ip
+
+iseq ${platform} pcbios && set start BIOS_MENU || set start EFI_MENU
+
+goto ${start}
+
+:BIOS_MENU
+
+set menu-default win10pe
+
+menu iPXE BIOS Boot Menu
+
+item --key 1 win10pe        1. Win11x64PE
+
+item --key r reboot        R.ReBoot Computer
+
+choose --timeout ${menu-timeout} --default ${menu-default} selected
+
+goto ${selected}
+
+:shell
+
+echo Type 'Exit' to get the back to the menu
+
+shell
+
+goto start
+
+:failed
+
+echo Booting failed, dropping to shell
+
+goto shell
+
+:reboot
+
+reboot
+
+:win10pe
+
+kernel http://${next-server}/IPXE/wimboot2
+
+initrd http://${next-server}/bootmgr.exe                bootmgr.exe
+
+initrd http://${next-server}/IPXE/bio                                BCD
+
+initrd http://${next-server}/boot/boot.sdi                        boot.sdi
+
+initrd http://${next-server}/boot/Win11x64.wim                Boot.wim
+
+boot || goto failed
+
+goto start
+
+:EFI_MENU
+
+set menu-default win10efi
+
+menu iPXE EFI Boot Menu
+
+item win10efi                1.Win11x64PE
+
+item reboot                2.ReBoot Computer
+
+choose --timeout ${menu-timeout} --default ${menu-default} selected
+
+goto ${selected}
+
+
+
+:win10efi
+
+kernel http://${next-server}/IPXE/wimboot
+
+initrd http://${next-server}/bootx64.efi                          bootx64.efi
+
+initrd http://${next-server}/IPXE/BCD                        BCD
+
+initrd http://${next-server}/boot/boot.sdi                                 boot.sdi
+
+initrd   -n   Boot.wim   http://${next-server}/boot/Win11x64.wim               
+
+boot || goto failed
+
+goto start
