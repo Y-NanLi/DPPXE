@@ -29,7 +29,7 @@ import (
 const HeartbeatSec = 20
 
 // VersionWord 握手用的版本字（主版本<<16 | 次版本）。
-const VersionWord = (1 << 16) | 1 // 1.1（主版本<<16 | 次版本）
+const VersionWord = (1 << 16) | 2 // 1.2（主版本<<16 | 次版本）
 
 // Callbacks 界面回调（控制台版本可全为 nil）。
 type Callbacks struct {
@@ -460,15 +460,28 @@ func (c *Client) runCommand(msg *protocol.Message) {
 		eng.RunScript(body)
 		c.Log("自动化任务完成")
 	case protocol.OpPartition:
-		c.Log("收到分区指令")
-		eng.diskpart(string(msg.Payload))
-	case protocol.OpInstall, protocol.OpBackup, protocol.OpStream, protocol.OpInjectDrv:
-		// payload 是引擎指令（如 UNCOMPRESS "x|1" C: FALSE）
+		script := string(msg.Payload)
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(script)), "AUTOPARTITION") {
+			// 智能自动分区：客户端按自己的磁盘容量算方案
+			c.Log("收到智能自动分区指令")
+			eng.ExecRaw(strings.TrimSpace(script))
+		} else {
+			c.Log("收到分区指令")
+			eng.diskpart(script)
+		}
+	case protocol.OpInstall, protocol.OpBackup, protocol.OpInjectDrv:
+		// payload 是完整引擎指令（如 UNCOMPRESS "x|1" C: FALSE）
 		for _, line := range strings.Split(string(msg.Payload), "\n") {
 			line = strings.TrimSpace(line)
 			if line != "" {
 				eng.ExecRaw(line)
 			}
+		}
+	case protocol.OpStream:
+		// payload 只是 STREAMINSTALL 的参数（"url" part flags...），命令名要自己补，
+		// 否则会把 URL 当成命令名 → "未知指令"。
+		if params := strings.TrimSpace(string(msg.Payload)); params != "" {
+			eng.ExecRaw("STREAMINSTALL " + params)
 		}
 	case protocol.OpFixBoot, protocol.OpRebuildMBR:
 		// payload 是原始命令行（format / bcdboot）

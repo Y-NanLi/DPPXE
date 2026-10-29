@@ -10,10 +10,10 @@
 
   <!-- ================= 标题栏 ================= -->
   <header class="titlebar">
-    <div class="logo">1.1</div>
+    <div class="logo">1.2</div>
     <div class="titles">
       <h1>DP-PXE</h1>
-      <div class="sub">Version <span id="appVer">1.1</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
+      <div class="sub">Version <span id="appVer">1.2</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
     </div>
     <div class="spacer"></div>
     <button id="menuBtn" class="titlebtn" title="菜单">☰</button>
@@ -218,12 +218,21 @@
           <div class="card">
             <div class="card-title">磁盘准备</div>
             <div class="row">
-              <span>硬盘号</span><input type="number" id="spDisk" min="0" max="15" value="0" style="width:66px">
-              <span style="width:10px"></span>
+              <span>硬盘</span>
+              <select id="spDisk" style="width:190px"><option value="0">HD0</option></select>
+              <span class="hint" id="lblDiskCount">未上报硬盘</span>
+              <span style="width:14px"></span>
               <label class="radio"><input type="radio" name="fw" value="auto" checked>自动</label>
               <label class="radio"><input type="radio" name="fw" value="uefi">UEFI</label>
               <label class="radio"><input type="radio" name="fw" value="legacy">Legacy</label>
-              <span style="width:14px"></span>
+              <span style="width:10px"></span>
+              <span id="diskRoleBox" style="display:none">
+                <label class="radio"><input type="radio" name="diskrole" value="primary" checked>主盘</label>
+                <label class="radio"><input type="radio" name="diskrole" value="secondary">副盘</label>
+              </span>
+            </div>
+            <div class="row">
+              <span style="width:44px"></span>
               <button id="btnAutopart" style="width:110px">智能自动分区</button>
               <button class="ghost" id="btnRebuildMbr" style="width:100px">重建主引导</button>
               <button id="btnFixboot" style="width:90px">引导修复</button>

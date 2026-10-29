@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
+	"dppxe/internal/tasks"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/text/encoding/simplifiedchinese"
@@ -850,48 +852,137 @@ func (e *Engine) cmdDOWNLOAD(rest string) {
 		e.log(fmt.Sprintf("[模拟] 下载 %s -> %s", url, dir))
 		return
 	}
+	if _, err := e.downloadFile(url, dir); err != nil {
+		e.log(fmt.Sprintf("下载失败 %s: %v", url, err))
+	}
+}
+
+// downloadFile 把 url 下载到 dir，返回本地文件路径（DOWNLOAD / STREAMINSTALL 复用）。
+func (e *Engine) downloadFile(url, dir string) (string, error) {
 	name := url[strings.LastIndex(url, "/")+1:]
+	if i := strings.IndexAny(name, "?&"); i >= 0 {
+		name = name[:i]
+	}
 	if name == "" {
 		name = "download.bin"
 	}
-	_ = os.MkdirAll(dir, 0o755)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
 	dest := filepath.Join(dir, name)
 	e.log("开始下载 " + url)
 	client := &http.Client{Timeout: 30 * time.Minute}
 	resp, err := client.Get(url)
 	if err != nil {
-		e.log(fmt.Sprintf("下载失败 %s: %v", url, err))
-		return
+		return "", err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
 	fh, err := os.Create(dest)
 	if err != nil {
-		e.log("写入失败：" + err.Error())
-		return
+		return "", err
 	}
 	defer fh.Close()
 	n, err := io.Copy(fh, resp.Body)
 	if err != nil {
-		e.log("下载中断：" + err.Error())
-		return
+		return "", err
 	}
 	e.log(fmt.Sprintf("下载完成 %s (%d B)", dest, n))
+	return dest, nil
 }
 
 // ---------------------------------------------------------------- 磁盘 / 镜像
 
+// cmdAUTOPARTITION 智能自动分区：按本机磁盘容量自动选择方案。
+//
+//	<256GB  → 1 个分区（整盘）
+//	<512GB  → 2 个分区（首 200GB + 剩余）
+//	≤1TB    → 3 个分区（首 300GB + 剩余两等分）
+//	>1TB    → 3 个分区（同 ≤1TB）
+//
+// 参数：disk role firmware。role=secondary（副盘）不建 ESP/MSR。
 func (e *Engine) cmdAUTOPARTITION(rest string) {
-	disk := strings.TrimSpace(e.Expand(rest))
-	if disk == "" {
-		disk = "0"
+	a := splitArgs(e.Expand(rest))
+	disk := 0
+	role := "primary"
+	fw := "auto"
+	if len(a) > 0 {
+		if n, err := strconv.Atoi(a[0]); err == nil {
+			disk = n
+		}
 	}
-	e.log("开始自动分区 磁盘" + disk)
-	script := "select disk " + disk + "\r\nclean\r\nconvert gpt\r\n" +
-		"create partition efi size=512\r\nformat fs=Fat32 quick\r\nassign letter=S\r\n" +
-		"create partition msr size=128\r\n" +
-		"create partition primary\r\nformat fs=NTFS quick\r\nassign letter=C\r\nexit\r\n"
-	e.diskpart(script)
+	if len(a) > 1 && a[1] != "" {
+		role = strings.ToLower(a[1])
+	}
+	if len(a) > 2 && a[2] != "" {
+		fw = strings.ToLower(a[2])
+	}
+
+	sizeGB := 0
+	if disks, err := ListDisks(); err == nil {
+		for _, d := range disks {
+			if d.Index == disk {
+				sizeGB = d.SizeGB
+				break
+			}
+		}
+	}
+	if sizeGB <= 0 {
+		e.log(fmt.Sprintf("未读到磁盘 %d 容量，按 60GB 处理", disk))
+		sizeGB = 60
+	}
+
+	count, sizes := autoPartScheme(sizeGB)
+
+	table := "gpt"
+	if fw == "legacy" {
+		table = "mbr"
+	}
+	createESP := table == "gpt" && role != "secondary"
+	createMSR := table == "gpt" && role != "secondary"
+
+	labels := append([]string{}, tasks.DefaultLabels[:count]...)
+	if role == "secondary" {
+		labels = append([]string{}, []string{"数据", "备份", "其他"}[:count]...)
+	}
+	filesystems := make([]string, count)
+	for i := range filesystems {
+		filesystems[i] = "NTFS"
+	}
+
+	spec := &tasks.PartitionSpec{
+		Disk: disk, Table: table, TotalGB: sizeGB, Count: count,
+		SizesGB: sizes, Labels: labels, Filesystems: filesystems,
+		CreateESP: createESP, CreateMSR: createMSR,
+		EspMB: 300, MsrMB: 16, Align: 2048,
+	}
+	e.log(fmt.Sprintf("智能自动分区：磁盘%d %dGB → %s / %d 个分区（%s）",
+		disk, sizeGB, strings.ToUpper(table), count, role))
+	e.diskpart(tasks.BuildDiskpart(spec))
 	e.log("分区任务完成")
+}
+
+// autoPartScheme 按磁盘容量返回 (分区数, 各分区大小 GB)。
+// 最后一个为 0 表示"吃掉剩余空间"。规则：
+//
+//	<256GB  → 1 个分区（整盘）
+//	<512GB  → 2 个分区（首 200GB + 剩余）
+//	≥512GB  → 3 个分区（首 300GB + 剩余两等分）
+func autoPartScheme(sizeGB int) (int, []int) {
+	switch {
+	case sizeGB < 256:
+		return 1, []int{0}
+	case sizeGB < 512:
+		return 2, []int{200, 0}
+	default:
+		restGB := sizeGB - 300
+		if restGB < 0 {
+			restGB = 0
+		}
+		return 3, []int{300, restGB / 2, 0}
+	}
 }
 
 // selectedDisk 从脚本里取出 "Select disk N" 的 N。
@@ -1079,10 +1170,34 @@ func (e *Engine) cmdSTREAMINSTALL(rest string) {
 	}
 	target := string(rune('A'+part-1)) + ":"
 	e.log(fmt.Sprintf("流式安装 %s -> %s", url, target))
+	if e.dryRun {
+		return
+	}
 	if len(a) > 3 && a[3] == "1" {
+		e.log("格式化 " + target)
 		e.Run(fmt.Sprintf("format %s /q /y", target), true, 600)
 	}
-	e.Run(fmt.Sprintf(`wimlib-imagex.exe apply "%s" 1 "%s" --check`, url, target), true, 7200)
+	// wimlib 不支持 http/https，先把镜像流式下载到本地再 apply。
+	local := url
+	if strings.HasPrefix(strings.ToLower(url), "http://") ||
+		strings.HasPrefix(strings.ToLower(url), "https://") {
+		dir := e.maxFreeDrive() + `:\DPPXE_TMP`
+		p, err := e.downloadFile(url, dir)
+		if err != nil {
+			e.log(fmt.Sprintf("镜像下载失败：%v，流式安装中止", err))
+			return
+		}
+		local = p
+	}
+	e.log(fmt.Sprintf("应用镜像 %s -> %s", local, target))
+	rc, _ := e.Run(fmt.Sprintf(`wimlib-imagex.exe apply "%s" 1 "%s" --check`, local, target), true, 7200)
+	if rc != 0 {
+		e.log("wimlib 不可用，改用 dism")
+		e.Run(fmt.Sprintf(`dism /Apply-Image /ImageFile:"%s" /Index:1 /ApplyDir:"%s"`, local, target), true, 7200)
+	}
+	if local != url {
+		_ = os.Remove(local) // 装完删掉临时镜像，省空间
+	}
 	e.log("流式安装完成")
 }
 

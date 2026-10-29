@@ -188,3 +188,31 @@ func TestRunHandlesQuotedPath(t *testing.T) {
 		t.Fatalf("Run 读带空格路径失败: rc=%d out=%q", rc, out)
 	}
 }
+
+func TestAutoPartScheme(t *testing.T) {
+	cases := []struct {
+		gb    int
+		count int
+		sizes []int
+	}{
+		{120, 1, []int{0}},           // <256 → 1 分区（整盘）
+		{255, 1, []int{0}},
+		{256, 2, []int{200, 0}},      // 256~511 → 2 分区（首 200GB + 剩余）
+		{511, 2, []int{200, 0}},
+		{512, 3, []int{300, 106, 0}}, // ≥512 → 3 分区（首 300GB + 剩余两等分）
+		{1024, 3, []int{300, 362, 0}},
+		{2000, 3, []int{300, 850, 0}},
+	}
+	for _, c := range cases {
+		n, sizes := autoPartScheme(c.gb)
+		if n != c.count || len(sizes) != len(c.sizes) {
+			t.Errorf("%dGB: got count=%d sizes=%v, want %d %v", c.gb, n, sizes, c.count, c.sizes)
+			continue
+		}
+		for i := range sizes {
+			if sizes[i] != c.sizes[i] {
+				t.Errorf("%dGB: sizes[%d]=%d, want %d", c.gb, i, sizes[i], c.sizes[i])
+			}
+		}
+	}
+}

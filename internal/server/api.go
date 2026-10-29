@@ -328,8 +328,13 @@ func (s *Server) Command(cmd string, a Args) Result {
 	// ---------------- 系统安装 ----------------
 	case "autopart":
 		disk := a.num("disk")
-		n := s.Send(protocol.OpPartition, []uint32{uint32(disk), 0, 1, 100, 2, 512, 0, 500}, "", nil)
-		return okResult(fmt.Sprintf("智能自动分区 -> %d 台", n), n)
+		role := orDefault(a.str("role"), "primary")
+		fw := orDefault(a.str("firmware"), "auto")
+		// 方案由客户端按自己的磁盘容量计算（多客户端时各自正确）
+		payload := fmt.Sprintf("AUTOPARTITION %d %s %s", disk, role, fw)
+		n := s.Send(protocol.OpPartition,
+			[]uint32{uint32(disk), 0, 0, 0, 0, 0, 0, 0}, "", []byte(payload))
+		return okResult(fmt.Sprintf("智能自动分区（%s）-> %d 台", role, n), n)
 	case "rebuildMbr":
 		disk := a.num("disk")
 		payload := strings.Join(tasks.BuildRebuildMBR(disk), "\r\n")
@@ -1080,6 +1085,16 @@ func parseSpec(a Args) *tasks.PartitionSpec {
 	}
 	if v := a.num("count"); v > 0 {
 		spec.Count = v
+	}
+	if v := a.num("primary_count"); v > 0 {
+		spec.PrimaryCount = v
+	}
+	if raw, ok := a["primaries"].([]any); ok {
+		spec.Primaries = nil
+		for _, x := range raw {
+			b, _ := x.(bool)
+			spec.Primaries = append(spec.Primaries, b)
+		}
 	}
 	if v := a.nums("sizes_gb"); len(v) > 0 {
 		spec.SizesGB = nil

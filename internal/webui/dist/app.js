@@ -389,7 +389,7 @@ $('menuBtn').onclick = (ev) => {
 
 async function about() {
   await info('关于',
-    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.1')}<br><br>`
+    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.2')}<br><br>`
     + `按 DP-PXE Server 1.6.9 的界面与功能重写的 Go 版本（原 Python/PySide6 版重构）。<br>`
     + `网络启动（DHCP/TFTP/HTTP）走标准协议；控制通道为按原协议风格重写的实现，`
     + `需配合本项目自带的被控端 / 模拟器演示。`);
@@ -598,17 +598,21 @@ function buildPartRows() {
       <select>${FS_LIST.map((f) => `<option>${f}</option>`).join('')}</select>
       <input type="number" min="1" max="20000" value="20" class="size-in">
       <span>卷标:</span>
-      <input type="text" class="label-in" value="${LABEL_LIST[i]}">`;
+      <input type="text" class="label-in" value="${LABEL_LIST[i]}">
+      <label class="check prim" style="display:none"><input type="checkbox" class="primary-in"${i === 0 ? ' checked' : ''}>主分区</label>`;
     box.appendChild(row);
     const els = {
       row,
       fs: row.querySelector('select'),
       size: row.querySelector('.size-in'),
       label: row.querySelector('.label-in'),
+      primary: row.querySelector('.primary-in'),
+      prim: row.querySelector('.prim'),
     };
     els.fs.onchange = () => schedulePreview();
     els.size.onchange = () => schedulePreview();
     els.label.onchange = () => schedulePreview();
+    els.primary.onchange = () => { enforcePrimaryPrefix(i); schedulePreview(); };
     partRowEls.push(els);
   }
 }
@@ -620,6 +624,32 @@ function partCount() {
 
 function partTable() {
   return $('cbTable').value === 'MBR' ? 'mbr' : 'gpt';
+}
+
+/* MBR 相关控件的显隐/可用状态：每行的「主分区」勾选框只在 MBR 下出现；ESP/MSR 只在 GPT 下可用 */
+function syncMbrUi() {
+  const mbr = partTable() === 'mbr';
+  $('ckMbr').disabled = !mbr;
+  $('ckNewEsp').disabled = mbr;
+  $('ckMsr').disabled = mbr;
+  partRowEls.forEach((r) => { if (r.prim) r.prim.style.display = mbr ? '' : 'none'; });
+  if (!mbr) $('ckMbr').checked = false;
+  if (mbr) { $('ckNewEsp').checked = false; $('ckMsr').checked = false; }
+}
+
+/* 主分区必须是前缀；并遵守 MBR 约束（>4 个分区时主分区最多 3 个，留槽给扩展） */
+function enforcePrimaryPrefix(changedIdx) {
+  const n = partCount();
+  if (partRowEls[changedIdx].primary.checked) {
+    for (let j = 0; j <= changedIdx; j++) partRowEls[j].primary.checked = true;
+  } else {
+    for (let j = changedIdx; j < n; j++) partRowEls[j].primary.checked = false;
+  }
+  let pc = 0;
+  for (let j = 0; j < n; j++) { if (partRowEls[j].primary.checked) pc++; else break; }
+  const maxPC = n <= 4 ? n : 3;
+  if (pc > maxPC) pc = maxPC;
+  for (let j = 0; j < n; j++) partRowEls[j].primary.checked = j < pc;
 }
 
 function syncRowVisibility() {
@@ -641,6 +671,7 @@ function currentSpec() {
     keep_esp: $('ckKeepEsp').checked,
     create_esp: $('ckNewEsp').checked,
     create_msr: $('ckMsr').checked,
+    primaries: partRowEls.slice(0, n).map((r) => r.primary.checked),
     esp_mb: 300,
     msr_mb: 16,
     align: $('ckAlign').checked ? (parseInt($('spAlign').value, 10) || 2048) : 0,
@@ -687,14 +718,10 @@ $('spCustom').addEventListener('change', () => {
 });
 $('spTotal').addEventListener('change', onStructureChange);
 $('cbTable').addEventListener('change', () => {
-  const mbr = partTable() === 'mbr';
-  $('ckMbr').disabled = !mbr;
-  $('ckNewEsp').disabled = mbr;
-  $('ckMsr').disabled = mbr;
-  if (!mbr) $('ckMbr').checked = false;
-  if (mbr) { $('ckNewEsp').checked = false; $('ckMsr').checked = false; }
+  syncMbrUi();
   onStructureChange();
 });
+syncMbrUi(); // 初始状态（默认 GPT）
 $('ckKeepEsp').addEventListener('change', () => {
   if ($('ckKeepEsp').checked) $('ckNewEsp').checked = false;
   onStructureChange();
@@ -734,6 +761,7 @@ $('btnPartReset').onclick = () => {
   $('ckMbr').checked = false;
   partRowEls.forEach((r, i) => { r.label.value = LABEL_LIST[i]; r.fs.value = 'NTFS'; });
   renderDiskList();
+  syncMbrUi();
   onStructureChange();
 };
 
@@ -754,6 +782,23 @@ function syncDisks(disks) {
   diskItems = disks;
   renderDiskList();
   applyDisk(0);
+  syncInstallDisks(disks);
+}
+
+/* 把被控端上报的磁盘同步到「系统安装」页：硬盘下拉 + 硬盘数 + 主/副盘开关 */
+function syncInstallDisks(disks) {
+  const sel = $('spDisk');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = disks.length
+      ? disks.map((d) => `<option value="${d.index}">HD${d.index}: ${esc(d.model || '磁盘')}（${d.size_gb || 0}GB）</option>`).join('')
+      : '<option value="0">HD0</option>';
+    if (prev && Array.from(sel.options).some((o) => o.value === prev)) sel.value = prev;
+  }
+  const cnt = $('lblDiskCount');
+  if (cnt) cnt.textContent = disks.length ? `已识别 ${disks.length} 块硬盘` : '未上报硬盘';
+  const roleBox = $('diskRoleBox');
+  if (roleBox) roleBox.style.display = disks.length > 1 ? '' : 'none';
 }
 
 function renderDiskList() {
@@ -783,10 +828,7 @@ function applyDisk(row) {
     const style = (d.style || '').toUpperCase();
     if (style === 'GPT' || style === 'MBR') {
       $('cbTable').value = style;
-      const mbr = style === 'MBR';
-      $('ckMbr').disabled = !mbr;
-      $('ckNewEsp').disabled = mbr;
-      $('ckMsr').disabled = mbr;
+      syncMbrUi();
     }
   }
   onStructureChange();
@@ -806,7 +848,11 @@ function firmware() {
   return document.querySelector('input[name=fw]:checked').value;
 }
 
-$('btnAutopart').onclick = () => cmd('autopart', { disk: parseInt($('spDisk').value, 10) || 0 });
+$('btnAutopart').onclick = () => cmd('autopart', {
+  disk: parseInt($('spDisk').value, 10) || 0,
+  role: (document.querySelector('input[name=diskrole]:checked') || {}).value || 'primary',
+  firmware: firmware(),
+});
 $('btnRebuildMbr').onclick = () => cmd('rebuildMbr', { disk: parseInt($('spDisk').value, 10) || 0 });
 $('btnFixboot').onclick = () => cmd('fixboot', {
   win: $('cbInstall').value, boot: $('cbBoot').value, firmware: firmware(),

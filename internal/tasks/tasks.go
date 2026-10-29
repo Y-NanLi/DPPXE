@@ -19,20 +19,22 @@ const MB = 1024
 
 // PartitionSpec 对齐 DiskGenius「快速分区」的参数模型。
 type PartitionSpec struct {
-	Disk        int      `json:"disk"`
-	Table       string   `json:"table"`    // gpt / mbr
-	TotalGB     int      `json:"total_gb"` // 估算总容量，只用于算默认大小
-	Count       int      `json:"count"`    // 数据分区个数
-	SizesGB     []int    `json:"sizes_gb"`
-	Labels      []string `json:"labels"`
-	Filesystems []string `json:"filesystems"`
-	RebuildMBR  bool     `json:"rebuild_mbr"`
-	KeepESP     bool     `json:"keep_esp"`
-	CreateESP   bool     `json:"create_esp"`
-	CreateMSR   bool     `json:"create_msr"`
-	EspMB       int      `json:"esp_mb"`
-	MsrMB       int      `json:"msr_mb"`
-	Align       int      `json:"align"` // 对齐扇区数，0 = 不对齐
+	Disk         int      `json:"disk"`
+	Table        string   `json:"table"`         // gpt / mbr
+	TotalGB      int      `json:"total_gb"`      // 估算总容量，只用于算默认大小
+	Count        int      `json:"count"`         // 数据分区个数
+	PrimaryCount int      `json:"primary_count"` // MBR 主分区数（1-4），其余为逻辑分区（Primaries 为空时的回退）
+	Primaries    []bool   `json:"primaries"`     // 每个分区是否主分区（MBR 用；必须前缀）
+	SizesGB      []int    `json:"sizes_gb"`
+	Labels       []string `json:"labels"`
+	Filesystems  []string `json:"filesystems"`
+	RebuildMBR   bool     `json:"rebuild_mbr"`
+	KeepESP      bool     `json:"keep_esp"`
+	CreateESP    bool     `json:"create_esp"`
+	CreateMSR    bool     `json:"create_msr"`
+	EspMB        int      `json:"esp_mb"`
+	MsrMB        int      `json:"msr_mb"`
+	Align        int      `json:"align"` // 对齐扇区数，0 = 不对齐
 }
 
 // DefaultLabels 默认卷标。
@@ -205,12 +207,29 @@ func BuildDiskpart(sp *PartitionSpec) string {
 		return out
 	}
 
-	if table == "mbr" && count > 1 {
-		lines = append(lines, one(0, false)...) // 主分区
-		lines = append(lines, "Create partition extended")
-		partNo++ // 扩展分区占一个序号
-		for i := 1; i < count; i++ {
-			lines = append(lines, one(i, true)...) // 逻辑分区
+	if table == "mbr" {
+		primaries := resolveMBRPrimaries(sp, count)
+		// 先建所有主分区（MBR 主分区必须排在扩展分区之前）
+		for i := 0; i < count; i++ {
+			if primaries[i] {
+				lines = append(lines, one(i, false)...) // 第 1 个自动 active
+			}
+		}
+		hasLogical := false
+		for i := 0; i < count; i++ {
+			if !primaries[i] {
+				hasLogical = true
+				break
+			}
+		}
+		if hasLogical {
+			lines = append(lines, "Create partition extended")
+			partNo = 4 // MBR 逻辑分区从 5 开始编号
+			for i := 0; i < count; i++ {
+				if !primaries[i] {
+					lines = append(lines, one(i, true)...) // 逻辑分区
+				}
+			}
 		}
 	} else {
 		for i := 0; i < count; i++ {
@@ -235,6 +254,40 @@ func BuildDiskpart(sp *PartitionSpec) string {
 	}
 	lines = append(lines, "exit")
 	return strings.Join(lines, "\r\n")
+}
+
+// resolveMBRPrimaries 计算 MBR 每个分区是否主分区（必须前缀 true..false..）。
+// 约束：全主分区时最多 4 个；有逻辑分区时必须留一个槽给扩展分区 → 最多 3 个。
+func resolveMBRPrimaries(sp *PartitionSpec, count int) []bool {
+	prim := make([]bool, count)
+	if len(sp.Primaries) > 0 {
+		copy(prim, sp.Primaries)
+	} else {
+		pc := sp.PrimaryCount
+		if pc <= 0 {
+			pc = 1
+		}
+		for i := 0; i < pc && i < count; i++ {
+			prim[i] = true
+		}
+	}
+	// 强制前缀：主分区必须是连续的
+	pc := 0
+	for pc < count && prim[pc] {
+		pc++
+	}
+	maxPC := count
+	if count > 4 {
+		maxPC = 3 // 超过 4 个分区时必然有逻辑分区，需留槽给扩展
+	}
+	if pc > maxPC {
+		pc = maxPC
+	}
+	out := make([]bool, count)
+	for i := 0; i < pc; i++ {
+		out[i] = true
+	}
+	return out
 }
 
 // BuildFixboot 引导修复：先格式化引导分区，再 bcdboot。
