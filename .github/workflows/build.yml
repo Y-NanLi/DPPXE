@@ -86,6 +86,12 @@ jobs:
           name: DP-PXE-windows-amd64
           path: dist
 
+      - name: 打包 netboot 与 AutoCommand（显式过滤 *.wim，排除 585MB 的 PE 镜像）
+        shell: bash
+        run: |
+          git archive --format=zip -o netboot.zip HEAD netboot ':(exclude)**/*.wim'
+          git archive --format=zip -o AutoCommand.zip HEAD AutoCommand
+
       - name: 发布正式版（tag v*，自动生成 Release Notes）
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -95,7 +101,7 @@ jobs:
           gh release create "$tag" \
             --title "DP-PXE $tag" \
             --generate-notes \
-            dist/*.exe
+            dist/*.exe netboot.zip AutoCommand.zip
 
       - name: 发布滚动最新版（push 到 main → prerelease）
         if: github.ref == 'refs/heads/main'
@@ -111,4 +117,4 @@ jobs:
             --notes "自动构建于 push 到 main。
           Commit: ${GITHUB_SHA}
           构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            dist/*.exe
+            dist/*.exe netboot.zip AutoCommand.zip
