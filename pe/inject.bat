@@ -6,12 +6,12 @@ cd /d "%~dp0"
 rem ===========================================================================
 rem  把被控端 + 开机自启脚本注入 WinPE 镜像（用 wimlib，不需要管理员）
 rem
-rem    inject.bat                      :: 默认注入 ..\..\hh\netboot\boot\win11x64.WIM
+rem    inject.bat                      :: 默认注入 ..\netboot\boot\win11x64.WIM
 rem    inject.bat D:\path\to\xx.wim    :: 指定镜像
 rem ===========================================================================
 
 set "WIM=%~1"
-if "%WIM%"=="" set "WIM=%~dp0..\..\hh\netboot\boot\win11x64.WIM"
+if "%WIM%"=="" set "WIM=%~dp0..\netboot\boot\win11x64.WIM"
 
 set "WIMLIB=%~dp0..\..\rebuild\tools\wimlib\wimlib-imagex.exe"
 if not exist "%WIMLIB%" (

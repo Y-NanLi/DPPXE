@@ -3,5 +3,7 @@ logs/
 tmp-*/
 *.exe
 
-# netboot: 大体积 PE 镜像（585MB，超 GitHub 单文件 100MB 上限）不入库，仅本地保留
+# netboot: 大体积 PE 镜像（~590MB，超 GitHub 单文件 100MB 上限）不入库，仅本地保留
+# 含注入前的备份文件（win11x64.WIM.pre-*），一律排除
 netboot/boot/win11x64.WIM
+netboot/boot/win11x64.WIM.pre-*

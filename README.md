@@ -1,4 +1,4 @@
-# DP-PXE —— Go 重构版（v1.0）
+# DP-PXE —— Go 重构版（v1.1）
 
 项目是根据HHXSPxe仿照改写的编写主力是deepseek，hhxspxe项目qq群103494722。
 
@@ -8,7 +8,7 @@
 界面改用 **Wails v2 + WebView2**（前端是手写的 HTML/CSS/JS，没有 npm 依赖），  
 编译产物是单个 exe，不依赖 Python / PySide6 / 任何运行库。
 
-`hh/` 仍然是被调用的程序目录（`netboot` 引导文件 + `AutoCommand` 脚本），本程序只负责  
+`netboot/`（引导文件）与 `AutoCommand/`（自动安装脚本）已并入工程 `go/` 目录下，本程序只负责  
 「发什么、怎么发」——DHCP / TFTP / HTTP / 控制通道全部真实实现。
 
 ---
@@ -32,7 +32,7 @@ test.bat       :: 内置自检（33 项）
 
 ```bat
 bin\DP-PXE.exe                                     :: 图形界面
-bin\DP-PXEClient.exe --nogui --root D:\hh\netboot  :: 无界面跑全部服务（PE / 服务器）
+bin\DP-PXEClient.exe --nogui --root D:\wb\h-go\go\netboot  :: 无界面跑全部服务（PE / 服务器）
 bin\DP-PXEClient.exe --web --web-port 8788         :: 不开窗口，浏览器里用界面（WebView2 缺失时兜底）
 bin\DP-PXE.exe       --client --gui --server 10.0.0.133  :: 被控端（图形界面）
 bin\DP-PXEClient.exe --client --server 10.0.0.133          :: 被控端（控制台，PE 用）
@@ -229,7 +229,7 @@ bin\DP-PXEClient.exe --client --server 10.0.0.133
 :: ④ 双击 DP-PXEClient.exe（不带参数 = 图形界面 + 自动广播发现服务端）
 ```
 
-- 启动后会先打印一行 `DP-PXE 被控端 1.0 启动（主机名，系统/PE）→ 服务端 x.x.x.x:6003`，  
+- 启动后会先打印一行 `DP-PXE 被控端 1.1 启动（主机名，系统/PE）→ 服务端 x.x.x.x:6003`，  
   连不上会每 3→6→12→24→30 秒自动重连，并打印具体原因（服务端没开 / 防火墙 / IP 不对）。
 - 用 `DP-PXE.exe --client` 也可以，程序会自己补一个控制台窗口（GUI 子系统本来没有 stdout）。
 - 老版本菜单传的 `--gui` 参数现在会被忽略，不会再导致参数解析失败退出。
@@ -244,7 +244,7 @@ bin\DP-PXEClient.exe --client --server 10.0.0.133
 
 **③ TFTP 404 ipxe.efi**  
 「相对根目录」不对。点 `…` 选到真正的 netboot（里面有 `menu.txt`、`ipxe.efi`、`IPXE\`、`boot\`）。  
-程序启动时会在 `..\netboot`、`..\hh\netboot` 等位置自动找一次。
+程序启动时会在 exe 所在目录的上级 `netboot`（`..\netboot`）等位置自动找一次。
 
 **④ 客户机拿不到 IP / 引导不动**  
 「选择服务端IP」要选与客户机同网段的网卡；地址池默认按该 IP 前三段推导。  
@@ -330,7 +330,7 @@ diskpart 没有任何输出（返回码 2147500037），脚本文件：X:\Window
 
 ## 8. 部署到 WinPE（fyboot + 被控端已内置）
 
-> 本程序只负责 **`D:\wb\h-go\hh\netboot`** 这个目录（Go 版配置里的「相对根目录」就指向它）。
+> 本程序只负责 **`D:\wb\h-go\go\netboot`** 这个目录（Go 版配置里的「相对根目录」就指向它）。
 
 `boot\win11x64.WIM` 的内容已经换成 **fyboot.wim（飞雨 Win11PE）**，  
 并把 Go 版被控端注入进去、设成开机自启。
@@ -365,7 +365,7 @@ PXE → DHCP → TFTP(BootX64.EFI / pxeboot.n12) → BCD → boot.sdi + win11x64
 
 ```bat
 build.bat
-pe\inject.bat                       :: 默认注入 ..\..\hh\netboot\boot\win11x64.WIM
+pe\inject.bat                       :: 默认注入 ..\netboot\boot\win11x64.WIM
 pe\inject.bat D:\path\xx.wim         :: 指定其它镜像
 ```
 

@@ -29,7 +29,7 @@ import (
 const HeartbeatSec = 20
 
 // VersionWord 握手用的版本字（主版本<<16 | 次版本）。
-const VersionWord = 1 << 16
+const VersionWord = (1 << 16) | 1 // 1.1（主版本<<16 | 次版本）
 
 // Callbacks 界面回调（控制台版本可全为 nil）。
 type Callbacks struct {
@@ -207,6 +207,11 @@ func (c *Client) RunForever() {
 		fmt.Printf("DP-PXE 被控端 %s 启动（%s，%s）→ 服务端 %s\n",
 			config.AppVersion, c.Name, mode, target)
 		fmt.Println("Ctrl+C 退出；连不上会一直自动重连")
+	}
+
+	// PE 里把同目录的 TightVNC 服务端拉起来，控制端才能 VNC 连进来。
+	if IsPE() {
+		c.startVNC()
 	}
 
 	backoff := 3
@@ -409,11 +414,16 @@ func (c *Client) startVNC() {
 	for _, rel := range []string{
 		`Tool\TightVNC\Amd64\tvnserver.EXE`,
 		`Tool\TightVNC\X86\tvnserver.EXE`,
+		`tvnserver.exe`,
+		`vnc\tvnserver.exe`,
 	} {
 		exe := filepath.Join(c.ExeDir(), rel)
 		if !config.FileExists(exe) {
 			continue
 		}
+		// 先关掉 VNC 认证（否则服务端报 "Server is not configured properly"），
+		// 再拉起服务端，让它读到新配置。
+		ensureVNCNoAuth()
 		cmd := exec.Command(exe, "-run")
 		cmd.Dir = filepath.Dir(exe)
 		hideWindow(cmd)

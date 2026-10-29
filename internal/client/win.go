@@ -161,3 +161,17 @@ func localAddr(conn net.Conn) string {
 func hideWindow(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 }
+
+// hideWindowCmdLine 启动子进程不弹窗，并用**原样命令行**交给 CreateProcess。
+//
+// 为什么需要它：exec.Command("cmd", "/c", cmdline) 时，Go 会把 cmdline 里
+// 的引号转义成 \"，而 cmd.exe 不认反斜杠转义，结果带空格/引号的路径（如
+// diskpart /s "X:\Windows\Temp\x.txt"）会被吃坏，diskpart 报"无法打开脚本文件"。
+// 直接给 SysProcAttr.CmdLine 可以绕过 Go 的转义，由我们自行保证引号正确。
+func hideWindowCmdLine(cmd *exec.Cmd, cmdline string) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000,
+		CmdLine:       cmdline,
+	}
+}

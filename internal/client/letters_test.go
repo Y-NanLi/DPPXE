@@ -2,6 +2,7 @@ package client
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -150,5 +151,40 @@ func TestWriteDiskpartScript(t *testing.T) {
 
 	if _, err := e.writeDiskpartScript("   \r\n"); err == nil {
 		t.Error("空脚本应当报错，而不是让 diskpart 去读空文件")
+	}
+}
+
+func TestDiskpartOpenFailed(t *testing.T) {
+	cases := []struct {
+		out  string
+		want bool
+	}{
+		{"DiskPart 无法打开或读取脚本文件。", true},
+		{"cannot open the script file", true},
+		{"The system cannot find the file specified.", true},
+		{"虚拟磁盘服务错误: 指定的驱动器号对于分配不可用。", false},
+		{"DiskPart 已成功分配驱动器号。", false},
+	}
+	for _, c := range cases {
+		if got := diskpartOpenFailed(c.out); got != c.want {
+			t.Errorf("diskpartOpenFailed(%q)=%v, want %v", c.out, got, c.want)
+		}
+	}
+}
+
+// TestRunHandlesQuotedPath 回归测试：路径带空格时，Run 必须能把完整路径交给命令。
+// 旧实现走 exec.Command("cmd","/c",...) 会把引号转义成 \" 被 cmd 吞掉，
+// 导致 diskpart 报"无法打开脚本文件"。
+func TestRunHandlesQuotedPath(t *testing.T) {
+	cli := New("127.0.0.1", 6003, false, "T", true, Callbacks{})
+	e := NewEngine(cli, false)
+	dir := t.TempDir()
+	f := filepath.Join(dir, "a b.txt")
+	if err := os.WriteFile(f, []byte("hello-run"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rc, out := e.Run(`type "`+f+`"`, true, 15)
+	if rc != 0 || !strings.Contains(out, "hello-run") {
+		t.Fatalf("Run 读带空格路径失败: rc=%d out=%q", rc, out)
 	}
 }

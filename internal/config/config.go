@@ -17,9 +17,9 @@ import (
 
 const (
 	AppName    = "DP-PXE (Go Rebuild)"
-	AppVersion = "1.0"
+	AppVersion = "1.1"
 	// ClientVersion 被控端版本号，握手时上报给服务端。
-	ClientVersion = "1.0"
+	ClientVersion = "1.1"
 )
 
 // Config 全量配置。JSON 字段名与 Python 版逐字对应，便于迁移。
@@ -289,9 +289,7 @@ func FindNetbootDir() string {
 	for _, r := range roots {
 		cands = append(cands,
 			filepath.Join(r, "netboot"),
-			filepath.Join(r, "NetBoot"),
-			filepath.Join(r, "hh", "netboot"),
-			filepath.Join(r, "hh", "NetBoot"))
+			filepath.Join(r, "NetBoot"))
 	}
 	seen := map[string]bool{}
 	for _, c := range cands {

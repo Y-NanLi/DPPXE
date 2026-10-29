@@ -1,4 +1,5 @@
 add "D:/wb/h-go/go/bin/DP-PXEClient.exe" "/Program Files/DP-PXEClient/DP-PXEClient.exe"
+add "D:/wb/h-go/go/netboot/vnc/tvnserver.exe" "/Program Files/DP-PXEClient/Tool/TightVNC/Amd64/tvnserver.EXE"
 add "D:/wb/h-go/go/pe/start_client.cmd" "/DPPXE/start_client.cmd"
 add "D:/wb/h-go/go/pe/startnet.cmd" "/Windows/System32/startnet.cmd"
 add "D:/wb/h-go/go/pe/Pecmd.ini" "/Windows/System32/Pecmd.ini"

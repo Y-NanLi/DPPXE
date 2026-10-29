@@ -1,8 +1,10 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -173,14 +175,69 @@ func (e *Engine) writeDiskpartScript(script string) (string, error) {
 }
 
 // runDiskpartText 跑一段 diskpart 脚本，返回 (返回码, 输出)。
+//
+// 首选「写脚本文件 + diskpart /s」。若 diskpart 明确报「无法打开/读取脚本文件」
+// （说明脚本根本没执行，重跑是安全的），自动改用 stdin 管道再执行一次，彻底
+// 绕开文件路径 / 权限问题。这是 PE 里 /s 打不开文件时的兜底方案。
 func (e *Engine) runDiskpartText(script string, timeout int) (int, string) {
-	p, err := e.writeDiskpartScript(script)
-	if err != nil {
-		e.log("写 diskpart 脚本失败：" + err.Error())
-		return -1, "无法写入脚本文件：" + err.Error()
+	if p, err := e.writeDiskpartScript(script); err == nil {
+		e.lastScriptPath = p
+		rc, out := e.Run(fmt.Sprintf(`diskpart /s "%s"`, p), true, timeout)
+		if rc == 0 || !diskpartOpenFailed(out) {
+			return rc, out
+		}
+		e.log("diskpart /s 打不开脚本文件，改用 stdin 管道执行")
+		return e.runDiskpartStdin(script, timeout)
+	} else {
+		e.log("写 diskpart 脚本失败：" + err.Error() + "，改用 stdin 管道执行")
+		return e.runDiskpartStdin(script, timeout)
 	}
-	e.lastScriptPath = p
-	return e.Run(fmt.Sprintf(`diskpart /s "%s"`, p), true, timeout)
+}
+
+// diskpartOpenFailed 判断输出是否是「脚本文件打不开 / 读不到」（脚本未执行）。
+func diskpartOpenFailed(out string) bool {
+	l := strings.ToLower(out)
+	return strings.Contains(out, "无法打开") || strings.Contains(out, "无法读取") ||
+		strings.Contains(l, "cannot open") || strings.Contains(l, "cannot find") ||
+		strings.Contains(l, "not exist") || strings.Contains(l, "does not exist")
+}
+
+// runDiskpartStdin 把脚本通过标准输入喂给 diskpart，完全不用脚本文件。
+func (e *Engine) runDiskpartStdin(script string, timeout int) (int, string) {
+	body := strings.ReplaceAll(script, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\n", "\r\n")
+	if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(body)), "exit") {
+		body = strings.TrimRight(body, "\r\n") + "\r\nexit\r\n"
+	}
+	cmd := exec.Command("diskpart")
+	cmd.Stdin = bytes.NewReader(encodeGBK(body))
+	hideWindow(cmd)
+	done := make(chan struct{})
+	var out []byte
+	var runErr error
+	go func() {
+		out, runErr = cmd.CombinedOutput()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Duration(timeout) * time.Second):
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		e.log("diskpart(stdin) 超时")
+		return -1, "timeout"
+	}
+	text := decodeOEM(out)
+	code := 0
+	if runErr != nil {
+		if ee, ok := runErr.(*exec.ExitError); ok {
+			code = ee.ExitCode()
+		} else {
+			code = -1
+		}
+	}
+	return code, strings.TrimSpace(text)
 }
 
 // wantedLetters 脚本里 assign letter 依次要用的盘符。

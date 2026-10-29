@@ -159,8 +159,10 @@ func (e *Engine) Run(cmdline string, wait bool, timeout int) (int, string) {
 		e.log("[模拟] " + cmdline)
 		return 0, ""
 	}
-	cmd := exec.Command("cmd", "/c", cmdline)
-	hideWindow(cmd)
+	// 用原样命令行调 cmd.exe，避免 Go 把路径里的引号转义成 \" 后被 cmd 吞掉
+	// （带空格的路径会因此打不开，典型症状：diskpart 报"无法打开脚本文件"）。
+	cmd := exec.Command("cmd.exe")
+	hideWindowCmdLine(cmd, `cmd.exe /c "`+cmdline+`"`)
 	if !wait {
 		if err := cmd.Start(); err != nil {
 			e.log(fmt.Sprintf("命令执行失败：%s (%v)", cmdline, err))
@@ -1200,6 +1202,36 @@ const tightVncReg = `Windows Registry Editor Version 5.00
 "RunControlInterface"=dword:00000001
 `
 
+// ensureVNCNoAuth 把 TightVNC 配成"无密码"。
+// tvnserver 默认开启 VNC 认证却没设密码，控制端连上来会报
+// "Server is not configured properly"（认证失败）。PE 里不需要密码，
+// 关掉两种认证方式，服务端就会以 None 安全类型接受连接。
+func ensureVNCNoAuth() {
+	set := func(root registry.Key) {
+		k, _, err := registry.CreateKey(root, `Software\TightVNC\Server`, registry.ALL_ACCESS)
+		if err != nil {
+			return
+		}
+		defer k.Close()
+		// 关掉所有认证方式 → 服务端以 None 安全类型接受连接（与用户现用配置一致）
+		_ = k.SetDWordValue("UseVncAuthentication", 0)
+		_ = k.SetDWordValue("UseControlAuthentication", 0)
+		_ = k.SetDWordValue("UseMicrosoftLogon", 0)
+		// 端口与访问
+		_ = k.SetDWordValue("RfbPort", 5900)
+		_ = k.SetDWordValue("HttpPort", 5800)
+		_ = k.SetDWordValue("AcceptRfbConnections", 1)
+		_ = k.SetDWordValue("AcceptHttpConnections", 1)
+		_ = k.SetDWordValue("EnableFileTransfers", 1)
+		_ = k.SetDWordValue("AlwaysShared", 1)
+		_ = k.SetDWordValue("LoopbackOnly", 0)
+		_ = k.SetDWordValue("AllowLoopback", 0)
+		_ = k.SetDWordValue("RunControlInterface", 0)
+	}
+	set(registry.CURRENT_USER)
+	set(registry.LOCAL_MACHINE)
+}
+
 func (e *Engine) cmdINJECTAUTO(rest string) {
 	target := strings.Trim(strings.TrimSpace(e.Expand(rest)), `"`)
 	if target == "" {
@@ -1414,8 +1446,8 @@ func (e *Engine) cmdSHELL(rest string) {
 }
 
 func (e *Engine) streamOutput(cmdline string) {
-	cmd := exec.Command("cmd", "/c", cmdline)
-	hideWindow(cmd)
+	cmd := exec.Command("cmd.exe")
+	hideWindowCmdLine(cmd, `cmd.exe /c "`+cmdline+`"`)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		e.log("执行失败：" + err.Error())
