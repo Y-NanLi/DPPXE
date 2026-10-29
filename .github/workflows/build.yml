@@ -1,9 +1,9 @@
 name: Build DP-PXE
 
 # 触发条件：
-#   - 推送到 main 分支 → 跑 CI 构建（编译 + 自检）
-#   - 发起对 main 的 PR → 跑 CI 构建
-#   - 推送 v* 标签（如 v1.0） → 构建并把两个 exe 挂到 GitHub Release
+#   - 推送到 main 分支 → 跑 CI 构建，并发布滚动「最新版」Release（prerelease）
+#   - 发起对 main 的 PR → 只跑 CI 构建（不发布）
+#   - 推送 v* 标签（如 v1.0） → 构建并发布正式版 GitHub Release
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ on:
   pull_request:
     branches: [main]
 
-# contents: write 仅在打 tag 发布 Release 时需要；普通 PR 时 GitHub 会自动忽略该权限
+# contents: write 仅发布 Release / 删除滚动标签时需要；普通 PR 时 GitHub 会自动忽略该权限
 permissions:
   contents: write
 
@@ -70,9 +70,42 @@ jobs:
           name: DP-PXE-windows-amd64
           path: bin/*.exe
 
-      - name: 发布 GitHub Release（仅 tag 触发）
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  release:
+    name: Release
+    needs: build
+    # 仅打 v* 标签、或 push 到 main 时发布；PR 不发布
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
         with:
-          files: bin/*.exe
-          fail_on_unmatched_files: false
+          name: DP-PXE-windows-amd64
+          path: dist
+
+      - name: 发布正式版（tag v*，自动生成 Release Notes）
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release create "$tag" \
+            --title "DP-PXE $tag" \
+            --generate-notes \
+            dist/*.exe
+
+      - name: 发布滚动最新版（push 到 main → prerelease）
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 先删除旧的 latest 发布与标签，再重建为最新滚动版
+          gh release delete latest --yes || true
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" || true
+          gh release create latest \
+            --prerelease \
+            --title "Latest Build (${GITHUB_SHA:0:7})" \
+            --notes "自动构建于 push 到 main。
+          Commit: ${GITHUB_SHA}
+          构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            dist/*.exe
