@@ -1,0 +1,12 @@
+PE      Sleep              2000                                                     '等待2000毫秒
+PE      AutoPartition      0                                                        '自动给0号磁盘分区格式化
+PE      SETSAVEPATH        %MAXFree%:\Receive\                                      '设置保存路径为最大剩余空间分区
+PE      DOWNLOAD           http://%ServerIP%/Win10.ESD                              '下载服务端IP下的Win10.Wim
+PE      uncompress         %SaveFilePath%Win10.ESD|1            C:\      False      '解压缩      D:\Win10.Wim索引1号镜像到C盘,不压缩      
+PE      FixBoot            C:\                                  0      0          '修复引导 系统分区C     0 自动检测引导分区      0 自动      1 BIOS, 2  EFI
+PE      injectClient       C:\                                                      '注入客户端到C盘
+PE      injectAuto         C:\                                                      '注入自动应答到C盘
+PE      injectVNC          C:\                                  TRUE                '注入VNC到C盘并隐藏运行
+PE      SetBoot            1                                                           '设置本地启动,   1为本地,0为PXE
+PE      Reboot                                                                      '重启
+Sys     SetComputerName    Client-%ClientNum%                                       '设置计算机名为      Client-客户端编号
