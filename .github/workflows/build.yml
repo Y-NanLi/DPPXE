@@ -1,0 +1,78 @@
+name: Build DP-PXE
+
+# 触发条件：
+#   - 推送到 main 分支 → 跑 CI 构建（编译 + 自检）
+#   - 发起对 main 的 PR → 跑 CI 构建
+#   - 推送 v* 标签（如 v1.0） → 构建并把两个 exe 挂到 GitHub Release
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+# contents: write 仅在打 tag 发布 Release 时需要；普通 PR 时 GitHub 会自动忽略该权限
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (windows/amd64)
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Go 工具链
+        uses: actions/setup-go@v5
+        with:
+          # 与 go.mod 的 go 1.27.x 对齐；若 setup-go 未提供对应 patch，
+          # GOTOOLCHAIN=auto 会自动下载所需工具链
+          go-version: '1.27'
+          cache-dependency-path: go.sum
+
+      - name: 安装 MinGW-w64（desktop GUI 编译依赖 CGO/gcc）
+        shell: bash
+        run: |
+          C:/msys64/usr/bin/bash -lc "pacman -S --needed --noconfirm mingw-w64-x86_64-gcc"
+          echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
+
+      - name: 工具链自检
+        shell: bash
+        run: go version && gcc --version
+
+      - name: 拉取 / 整理依赖
+        shell: bash
+        run: go mod tidy
+
+      - name: 静态检查
+        shell: bash
+        run: go vet ./...
+
+      - name: 编译图形界面版 DP-PXE.exe
+        shell: bash
+        run: |
+          go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
+
+      - name: 编译控制台版 DP-PXEClient.exe（被控端 / 模拟器）
+        shell: bash
+        run: |
+          go build -trimpath -ldflags "-s -w" -o bin/DP-PXEClient.exe .
+
+      - name: 自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）
+        shell: bash
+        run: timeout 180 ./bin/DP-PXEClient.exe --selftest
+
+      - name: 上传构建产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DP-PXE-windows-amd64
+          path: bin/*.exe
+
+      - name: 发布 GitHub Release（仅 tag 触发）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/*.exe
+          fail_on_unmatched_files: false
