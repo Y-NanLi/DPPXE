@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DP-PXE</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= 标题栏 ================= -->
+  <header class="titlebar">
+    <div class="logo">1.0</div>
+    <div class="titles">
+      <h1>DP-PXE</h1>
+      <div class="sub">Version <span id="appVer">1.0</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="menuBtn" class="titlebtn" title="菜单">☰</button>
+  </header>
+
+  <div class="body">
+
+    <!-- ================= 顶部三列 ================= -->
+    <div class="top">
+      <section class="card" style="width:238px">
+        <div class="card-title">选择服务端IP</div>
+        <input type="text" id="serverIP" list="ipList" placeholder="10.0.0.133">
+        <datalist id="ipList"></datalist>
+        <div class="row"><span class="grow">DHCP 服务</span><div class="switch" id="tgDhcp"></div></div>
+        <div class="row"><span class="grow">TFTP 服务</span><div class="switch" id="tgTftp"></div></div>
+        <div class="row"><span class="grow">HTTP 服务</span><div class="switch" id="tgHttp"></div></div>
+        <div class="row"><span class="grow">代理DHCP</span><div class="switch" id="tgProxy"></div></div>
+        <div class="row"><span class="grow">文件服务</span><div class="switch" id="tgFile"></div></div>
+        <div style="height:4px"></div>
+        <div class="row"><span class="grow danger">仅仅选择中客户端接收指令</span><div class="switch" id="tgOnly"></div></div>
+      </section>
+
+      <section class="card" style="width:300px">
+        <div class="card-title">引导文件</div>
+        <div class="row"><span class="hint" style="width:104px">传统网启引导文件</span><input type="text" id="edBootBios" class="grow" style="width:130px"></div>
+        <div class="row"><span class="hint" style="width:104px">EFI网启引导文件</span><input type="text" id="edBootEfi" class="grow" style="width:130px"></div>
+        <div class="row"><span class="hint" style="width:104px">IPXE菜单文件</span><input type="text" id="edMenu" class="grow" style="width:130px"></div>
+        <div class="row">
+          <span class="hint" style="width:104px">相对根目录</span>
+          <input type="text" id="edRoot" class="grow" style="width:130px" title="netboot 目录（放 menu.txt / ipxe.efi / boot\ 的根）">
+          <button class="ghost mini" id="btnPickRoot" title="选择 netboot 目录">…</button>
+        </div>
+        <div class="hint" id="bootHint" style="white-space:pre-line"></div>
+      </section>
+
+      <section class="card grow">
+        <div class="row" style="margin-bottom:2px">
+          <span id="lblConn">已连接客户端: 0</span>
+          <span class="grow"></span>
+          <span id="lblSel">选中客户端: 0</span>
+        </div>
+        <div class="table-wrap">
+          <table class="clients">
+            <thead>
+              <tr>
+                <th style="width:44px">编号</th>
+                <th style="width:110px">IP地址</th>
+                <th style="width:126px">MAC地址</th>
+                <th style="width:62px">状态</th>
+                <th style="width:46px">网卡</th>
+                <th style="width:34px">根</th>
+                <th>引导</th>
+              </tr>
+            </thead>
+            <tbody id="clientRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= 页签 ================= -->
+    <div class="tabs">
+      <div class="tabbar" id="tabbar">
+        <div class="tab active" data-tab="dhcp">DHCP 设置</div>
+        <div class="tab" data-tab="cmd">远程CMD命令</div>
+        <div class="tab" data-tab="file">发送文件</div>
+        <div class="tab" data-tab="part">高级分区</div>
+        <div class="tab" data-tab="install">系统安装</div>
+        <div class="tab" data-tab="stream">流式安装</div>
+        <div class="tab" data-tab="script">自动化指令</div>
+        <div class="tab" data-tab="misc">其它设置</div>
+      </div>
+
+      <div class="panels">
+
+        <!-- ---------- 1. DHCP 设置 ---------- -->
+        <div class="panel active" id="panel-dhcp">
+          <div class="split">
+            <div class="card" style="flex:3">
+              <div class="card-title">地址池</div>
+              <div class="grid2">
+                <span>起始 IP</span><input type="text" id="dhcpStart">
+                <span>结束 IP</span><input type="text" id="dhcpEnd">
+                <span>子网掩码</span><input type="text" id="dhcpMask">
+                <span>网关</span><input type="text" id="dhcpGw">
+                <span>首选 DNS</span><input type="text" id="dhcpDns1">
+                <span>备用 DNS</span><input type="text" id="dhcpDns2">
+                <span>租约</span>
+                <div class="row"><input type="number" id="dhcpLease" min="600" max="604800" style="width:110px"><span class="hint">秒</span></div>
+                <span class="danger wide">地址池必须与服务端 IP 同网段，否则客户机拿不到引导文件</span>
+              </div>
+            </div>
+            <div class="card" style="flex:2">
+              <div class="card-title">行为</div>
+              <div class="row"><span class="grow">快速 DHCP 响应</span><div class="switch" id="tgFast"></div>
+                <span style="width:20px"></span>
+                <span class="grow">交叉数字签名安全引导（走微软原生引导器）</span><div class="switch" id="tgSecure"></div>
+              </div>
+              <div class="row"><span class="grow">代理 DHCP（不改动现有 DHCP，只补 PXE 选项）</span><div class="switch" id="tgProxy2"></div></div>
+              <div class="hint">提示：代理 DHCP 开启后，本服务不再分配 IP，只回 option 66/67/60，避免与现有 DHCP 冲突。</div>
+            </div>
+          </div>
+          <div class="row">
+            <button id="btnDhcpApply" style="width:120px">应用并保存</button>
+            <button class="ghost" id="btnDhcpDerive" style="width:132px">按服务端IP推导</button>
+            <span class="hint grow">代理 DHCP 开启时，左侧地址池不生效（客户机 IP 由现有 DHCP 提供）</span>
+          </div>
+        </div>
+
+        <!-- ---------- 2. 远程CMD命令 ---------- -->
+        <div class="panel" id="panel-cmd">
+          <div class="row">
+            <span class="hint grow">批量远程命令(分区格式化等,由客户端CMD调用)</span>
+            <label class="check"><input type="checkbox" id="chkWait">等待执行完成退出(阻塞,慎用)</label>
+            <label class="check"><input type="checkbox" id="chkAsUser">以客户端进程用户运行</label>
+          </div>
+          <textarea id="cmdText" class="grow" style="min-height:150px" placeholder="diskpart /s C:\dp.txt&#10;或&#10;Dism /Online /Cleanup-Image /RestoreHealth"></textarea>
+          <div class="row"><button id="btnRunCmd" style="width:96px">执行</button></div>
+        </div>
+
+        <!-- ---------- 3. 发送文件 ---------- -->
+        <div class="panel" id="panel-file">
+          <div class="card">
+            <div class="card-title">目标</div>
+            <div class="row">
+              <span>保存路径</span>
+              <input type="text" id="recvPath" style="width:300px">
+              <span class="hint">（客户端路径，末尾需带反斜杠）</span>
+            </div>
+          </div>
+          <div class="card grow">
+            <div class="card-title">文件列表</div>
+            <div class="filelist" id="fileList"></div>
+            <div class="row">
+              <button id="btnAddFiles" style="width:96px">添加文件</button>
+              <button id="btnAddDir" style="width:104px">添加文件夹</button>
+              <button class="ghost" id="btnRemoveFile" style="width:72px">移除</button>
+            </div>
+          </div>
+          <div class="row">
+            <label class="radio"><input type="radio" name="filemode" value="single" checked>单播(不限速)</label>
+            <label class="radio"><input type="radio" name="filemode" value="p2p">P2P 模式传输(适合多客户端并发)</label>
+            <span class="grow"></span>
+            <button id="btnSendFiles" style="width:96px">发送</button>
+          </div>
+          <div class="progress"><i id="sendBar"></i></div>
+        </div>
+
+        <!-- ---------- 4. 高级分区 ---------- -->
+        <div class="panel" id="panel-part">
+          <div class="split">
+            <div class="card" style="width:262px">
+              <div class="card-title">当前磁盘（点击选择）</div>
+              <div class="disklist" id="diskList"></div>
+              <div class="row"><span>估算总容量</span>
+                <input type="number" id="spTotal" min="8" max="20000" style="width:88px"><span class="hint">GB</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;margin-top:2px">
+                <label class="radio"><input type="radio" name="partCount" value="3" checked>3个分区</label>
+                <label class="radio"><input type="radio" name="partCount" value="4">4个分区</label>
+                <label class="radio"><input type="radio" name="partCount" value="5">5个分区</label>
+                <label class="radio"><input type="radio" name="partCount" value="6">6个分区</label>
+              </div>
+              <div class="row">
+                <label class="radio"><input type="radio" name="partCount" value="custom">自定义(C):</label>
+                <input type="number" id="spCustom" min="1" max="6" value="3" style="width:70px">
+                <span class="hint">个分区</span>
+              </div>
+              <label class="check" title="只有 MBR 分区表能用；分区表选 GPT 时这一项不可用（GPT 盘用「引导修复」bcdboot）"><input type="checkbox" id="ckMbr">重建主引导记录(MBR)</label>
+              <label class="check" title="勾上则不清盘，只在未分配空间建分区（与「创建新ESP」互斥）"><input type="checkbox" id="ckKeepEsp">保留现有ESP分区</label>
+              <label class="check" title="默认开，300MB FAT32；GPT 专用，MBR 下自动禁用"><input type="checkbox" id="ckNewEsp" checked>创建新ESP分区</label>
+              <label class="check" title="默认开，16MB；GPT 专用，MBR 下自动禁用"><input type="checkbox" id="ckMsr" checked>创建MSR分区</label>
+            </div>
+
+            <div class="card grow">
+              <div class="card-title">高级设置</div>
+              <div class="row"><span>分区表类型</span>
+                <select id="cbTable" style="width:90px"><option>GPT</option><option>MBR</option></select>
+              </div>
+              <div id="partRows" style="display:flex;flex-direction:column;gap:3px;margin-top:2px"></div>
+              <div class="row" style="margin-top:4px">
+                <button class="ghost" id="btnDefaultSizes" style="width:96px">默认大小</button>
+                <button class="ghost" id="btnClearLabels" style="width:110px">清空所有卷标</button>
+              </div>
+              <div class="row" style="margin-top:4px">
+                <label class="check"><input type="checkbox" id="ckAlign" checked>对齐分区到此扇区数的整数倍:</label>
+                <input type="number" id="spAlign" min="8" max="8192" value="2048" style="width:90px">
+                <span class="hint">扇区</span>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <span class="hint grow">提示：可按下"3、4、5、6"快速选择分区个数；执行后现有分区将被删除。</span>
+            <button class="ghost" id="btnShowScript" style="width:88px">查看脚本</button>
+            <button id="btnPartRun" style="width:88px">确定</button>
+            <button class="ghost" id="btnPartReset" style="width:88px">取消</button>
+          </div>
+        </div>
+
+        <!-- ---------- 5. 系统安装 ---------- -->
+        <div class="panel" id="panel-install">
+          <div class="card">
+            <div class="card-title">磁盘准备</div>
+            <div class="row">
+              <span>硬盘号</span><input type="number" id="spDisk" min="0" max="15" value="0" style="width:66px">
+              <span style="width:10px"></span>
+              <label class="radio"><input type="radio" name="fw" value="auto" checked>自动</label>
+              <label class="radio"><input type="radio" name="fw" value="uefi">UEFI</label>
+              <label class="radio"><input type="radio" name="fw" value="legacy">Legacy</label>
+              <span style="width:14px"></span>
+              <button id="btnAutopart" style="width:110px">智能自动分区</button>
+              <button class="ghost" id="btnRebuildMbr" style="width:100px">重建主引导</button>
+              <button id="btnFixboot" style="width:90px">引导修复</button>
+              <button id="btnUnattend" style="width:110px">注入自动应答</button>
+            </div>
+          </div>
+          <div class="split grow">
+            <div class="card grow">
+              <div class="card-title">镜像</div>
+              <div class="row">
+                <span style="width:96px">还原镜像(WIM,ESD)</span>
+                <input type="text" id="edImage" class="grow" placeholder="客户端路径，如 D:\Win11.wim">
+                <span>卷</span><input type="number" id="spIndex" min="1" max="99" value="1" style="width:56px">
+                <label class="check" title="WIMBoot/Compact 部署：文件不展开，靠 Wof 驱动重定向"><input type="checkbox" id="chkCompact">压缩</label>
+                <button id="btnInstall" style="width:76px">安装</button>
+              </div>
+              <div class="row">
+                <span style="width:96px">备份镜像(WIM)</span>
+                <input type="text" id="edBackup" class="grow" placeholder="备份输出路径，如 D:\Backup\pc.wim">
+                <label class="check"><input type="checkbox" id="chkIncr">增量备份</label>
+                <button id="btnBackup" style="width:76px">备份</button>
+              </div>
+              <div class="row">
+                <span style="width:96px">驱动注入(文件夹)</span>
+                <input type="text" id="edDrv" class="grow" placeholder="驱动文件夹，如 D:\Drv">
+                <button id="btnInjectDrv" style="width:90px">注入驱动</button>
+              </div>
+              <div class="danger">注意：以上三个路径都是【客户端】路径，不是服务端路径</div>
+            </div>
+            <div class="card" style="width:250px">
+              <div class="card-title">分区指定</div>
+              <div class="row"><span style="width:88px">指定安装分区</span><select id="cbInstall" class="grow"></select></div>
+              <div class="row"><span style="width:88px">指定引导分区</span><select id="cbBoot" class="grow"></select></div>
+              <div class="hint">留空则由客户端自动探测</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- 6. 流式安装 ---------- -->
+        <div class="panel" id="panel-stream">
+          <div class="card">
+            <div class="card-title">镜像流</div>
+            <div class="row">
+              <span>镜像流地址</span>
+              <input type="text" id="edUrl" class="grow" value="http://192.168.1.1/win10.wim">
+              <span class="hint">安装位置</span><select id="cbStreamPart" style="width:80px"></select>
+              <span class="hint">硬盘号</span><input type="number" id="spStreamDisk" min="0" max="15" value="0" style="width:66px">
+            </div>
+            <div class="row">
+              <span class="danger grow">仅支持 pipable WIM 文件，支持 http / https</span>
+              <button class="ghost" id="btnStreamConvert" style="width:120px">流式镜像转换</button>
+            </div>
+          </div>
+          <div class="card grow">
+            <div class="card-title">安装选项</div>
+            <div style="display:grid;grid-template-columns:repeat(4,auto);gap:10px 24px;align-items:center">
+              <span>自动智能分区</span><div class="switch" id="tgStAutopart"></div>
+              <span>格式化</span><div class="switch" id="tgStFormat"></div>
+              <span>自动重启</span><div class="switch" id="tgStReboot"></div>
+              <span>注入客户端</span><div class="switch" id="tgStClient"></div>
+              <span>引导修复</span><div class="switch" id="tgStFixboot"></div>
+              <span>注入自动应答</span><div class="switch" id="tgStUnattend"></div>
+              <span>注入 PE 驱动</span><div class="switch" id="tgStPedrv"></div>
+              <span>注入 VNC</span><div class="switch" id="tgStVnc"></div>
+            </div>
+            <div class="row" style="margin-top:8px"><span class="grow"></span><button id="btnStreamRun" style="width:120px">开始安装</button></div>
+          </div>
+        </div>
+
+        <!-- ---------- 7. 自动化指令 ---------- -->
+        <div class="panel" id="panel-script">
+          <textarea id="scriptText" class="grow" style="min-height:260px"></textarea>
+          <div class="row">
+            <button class="ghost" id="btnTpl" style="width:90px">插入模板</button>
+            <button class="ghost" id="btnCheck" style="width:70px">校验</button>
+            <span class="hint grow" id="scriptSummary"></span>
+            <label class="check"><input type="checkbox" id="chkAuto">客户端自动执行（每次连上就推送）</label>
+            <button id="btnScriptRun" style="width:96px">执行</button>
+          </div>
+        </div>
+
+        <!-- ---------- 8. 其它设置 ---------- -->
+        <div class="panel" id="panel-misc">
+          <div class="row">
+            <button id="btnRestartClient" style="width:124px">重启客户端进程</button>
+            <button id="btnInjectClient" style="width:150px">注入客户端到本地系统</button>
+            <button id="btnInjectVNC" style="width:152px">注入VNC到本地系统</button>
+            <label class="check"><input type="checkbox" id="chkVncHide">隐藏VNC托盘图标</label>
+            <button id="btnInjectPedrv" style="width:150px">注入PE驱动到本地系统</button>
+          </div>
+          <div class="row">
+            <span>设置下次启动</span>
+            <label class="radio"><input type="radio" name="nextboot" value="pe">PE</label>
+            <label class="radio"><input type="radio" name="nextboot" value="local" checked>本地系统</label>
+            <button class="ghost" id="btnSetboot" style="width:64px">应用</button>
+            <span style="width:18px"></span>
+            <span>自动修改计算机名</span><span>前缀</span>
+            <input type="text" id="edPrefix" style="width:96px" value="Client-">
+            <button class="ghost" id="btnRename" style="width:64px">执行</button>
+          </div>
+          <div class="row">
+            <button class="dangerbtn" id="btnPowerOff" style="width:84px">关机</button>
+            <button class="dangerbtn" id="btnReboot" style="width:84px">重启</button>
+            <button class="ghost" id="btnWolAll" style="width:100px">开机(WOL)</button>
+            <span class="grow"></span>
+            <button class="ghost" id="btnClearCache" style="width:120px">清空服务端缓存</button>
+            <button id="btnSaveAll" style="width:120px">保存服务器设置</button>
+          </div>
+          <div class="hint">提示：注入类操作要求目标机处于 PE 环境，并且已在列表中选中（或关闭「仅仅选择中客户端接收指令」以广播）。</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ================= 日志 ================= -->
+    <div class="logpanel" id="logPanel"></div>
+
+    <!-- ================= 底栏 ================= -->
+    <div class="footer">
+      <div class="dot" id="dotDhcp"></div><span class="hint">DHCP</span>
+      <div class="dot" id="dotTftp"></div><span class="hint">TFTP</span>
+      <div class="dot" id="dotHttp"></div><span class="hint">HTTP</span>
+      <div class="dot" id="dotFile"></div><span class="hint">文件服务</span>
+      <span id="lblStatus" class="hint" style="margin-left:10px">服务未启动</span>
+      <span id="lblAdmin" class="danger" style="display:none" title="以管理员身份运行才能绑定 67/69/80 并添加防火墙规则">未以管理员运行</span>
+      <span class="grow"></span>
+      <button class="ghost" id="btnLogToggle" style="width:82px">隐藏日志</button>
+      <button id="btnStart" style="width:110px">启动服务</button>
+      <button id="btnStop" style="width:110px;display:none">停止服务</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 内置 VNC 查看器 ================= -->
+<div class="vnc hidden" id="vncPanel">
+  <div class="vnc-head">
+    <span class="vnc-title" id="vncTitle">VNC</span>
+    <span class="vnc-stat" id="vncStat">连接中…</span>
+    <span class="grow"></span>
+    <button class="ghost mini" id="vncFit" title="画面按窗口缩放">适应窗口</button>
+    <button class="ghost mini" id="vncCad" title="发送 Ctrl+Alt+Del">Ctrl+Alt+Del</button>
+    <button class="ghost mini" id="vncFull" title="隐藏工具栏，只留画面">全屏</button>
+    <button class="mini" id="vncDisc">断开</button>
+    <button class="ghost mini" id="vncHide">关闭</button>
+  </div>
+  <div class="vnc-body" id="vncBody">
+    <canvas id="vncCanvas" tabindex="0"></canvas>
+  </div>
+</div>
+
+<!-- 菜单 / 右键菜单 / 模态框 -->
+<div class="menu hidden" id="mainMenu"></div>
+<div class="menu hidden" id="ctxMenu"></div>
+<div class="mask hidden" id="mask">
+  <div class="dialog">
+    <div class="head" id="dlgTitle">提示</div>
+    <div class="content" id="dlgContent"></div>
+    <div class="foot" id="dlgFoot"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

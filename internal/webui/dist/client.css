@@ -1,0 +1,168 @@
+/* DP-PXEClient（Go 版）—— 按原版被控端界面 1:1 还原：
+   蓝色渐变细标题栏 / 大字机器号 / 右上圆形进度 / 两行信息 / 带序号的日志列表 */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 12px;
+  color: #1c1c1c;
+  background: #f7fafd;
+  user-select: none;
+}
+
+.win {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  border: 1px solid #4b86c4; /* 无边框窗口给一条细描边，视觉上有轮廓 */
+}
+
+/* ---------------- 标题栏 ---------------- */
+.tbar {
+  flex: 0 0 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 8px;
+  background: linear-gradient(180deg, #5b9bd5 0%, #3f7fc4 100%);
+  /* 无边框窗口拖动区 */
+  --wails-draggable: drag;
+}
+
+.tbar .logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  background: #7fb2e5;
+  color: #fff;
+  font-weight: bold;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tbar .ttl {
+  color: #fff;
+  font-size: 12.5px;
+  letter-spacing: .2px;
+}
+
+.tbar .spacer { flex: 1; }
+
+.tbar .tbtn {
+  width: 26px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  --wails-draggable: no-drag;
+}
+.tbar .tbtn:hover { background: rgba(255,255,255,.22); }
+.tbar .tbtn.close:hover { background: #e04a4a; }
+
+/* ---------------- 主体 ---------------- */
+.body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px 8px;
+  background: linear-gradient(135deg, #f7fafd 0%, #eef4fb 100%);
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.no {
+  flex: 1;
+  font-size: 40px;
+  line-height: 1.15;
+  font-weight: bold;
+  color: #d92b2b;             /* 未连接：红色"未知" */
+  letter-spacing: 1px;
+  padding-top: 2px;
+}
+.no.on { color: #1a7f37; }     /* 已连接：绿色机器号 */
+
+/* 圆形进度 */
+.ring {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex: 0 0 84px;
+}
+.ring svg { display: block; transform: rotate(-90deg); }
+.ring .track { fill: none; stroke: #d6e2f2; stroke-width: 6; }
+.ring .bar {
+  fill: none;
+  stroke: #3b82d6;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 226.19;   /* 2πr, r=36 */
+  stroke-dashoffset: 226.19;
+  transition: stroke-dashoffset .25s ease;
+}
+.ring .pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+/* 信息两行 */
+.info { display: flex; flex-direction: column; gap: 2px; }
+.info .line { font-size: 12px; color: #1c1c1c; }
+.info .k { color: #1a4f9c; }
+.info .gap { display: inline-block; width: 26px; }
+
+/* 日志 */
+.log {
+  flex: 1;
+  min-height: 60px;
+  background: #ffffff;
+  border: 1px solid #c9d6e6;
+  overflow: auto;
+  padding: 2px 4px;
+  font-family: Consolas, "Microsoft YaHei UI", monospace;
+  font-size: 11.5px;
+  color: #243447;
+  user-select: text;
+}
+.log .row {
+  display: flex;
+  gap: 6px;
+  padding: 1px 2px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log .row:nth-child(odd) { background: #fbfdff; }
+.log .n { color: #7b8a9c; min-width: 22px; text-align: right; flex: 0 0 auto; }
+.log .ts { color: #7b8a9c; flex: 0 0 auto; }
+.log .tx { flex: 1; }
+
+.foot {
+  text-align: right;
+  font-size: 11px;
+  color: #8a97a6;
+  padding-top: 1px;
+}
