@@ -523,6 +523,13 @@ func (s *Server) PushFiles(paths []string, targetDir string) int {
 		s.Log("没有在线客户端", "warn")
 		return 0
 	}
+	var totalChunks int64
+	for _, p := range paths {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			totalChunks += (st.Size() + int64(services.ChunkSize) - 1) / int64(services.ChunkSize)
+		}
+	}
+	ctl.BeginPush(totalChunks)
 	n := 0
 	for _, p := range paths {
 		if err := ctl.PushFile(p, targetDir); err != nil {

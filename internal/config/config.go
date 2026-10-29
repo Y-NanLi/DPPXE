@@ -17,9 +17,9 @@ import (
 
 const (
 	AppName    = "DP-PXE (Go Rebuild)"
-	AppVersion = "1.2"
+	AppVersion = "1.3"
 	// ClientVersion 被控端版本号，握手时上报给服务端。
-	ClientVersion = "1.2"
+	ClientVersion = "1.3"
 )
 
 // Config 全量配置。JSON 字段名与 Python 版逐字对应，便于迁移。

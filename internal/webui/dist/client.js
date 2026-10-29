@@ -23,7 +23,7 @@ function renderInfo(info) {
   $('lblNo').classList.toggle('on', connected && no !== '未知');
 
   $('lblCliIP').textContent = info.client_ip || '0.0.0.0';
-  $('lblCliVer').textContent = info.client_ver || '1.2';
+  $('lblCliVer').textContent = info.client_ver || '1.3';
   $('lblSrvIP').textContent = info.server_ip || '0.0.0.0';
   $('lblSrvVer').textContent = info.server_ver || '未知';
 
@@ -32,9 +32,9 @@ function renderInfo(info) {
   $('ringBar').style.strokeDashoffset = String(RING * (1 - pct / 100));
 
   if (info.name) {
-    $('title').textContent = 'DP-PXEClient ' + (info.client_ver || '1.2')
+    $('title').textContent = 'DP-PXEClient ' + (info.client_ver || '1.3')
       + '  ·  ' + info.name + (info.mode ? '（' + info.mode + '）' : '');
-    document.title = 'DP-PXEClient ' + (info.client_ver || '1.2');
+    document.title = 'DP-PXEClient ' + (info.client_ver || '1.3');
   }
 }
 

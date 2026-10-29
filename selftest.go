@@ -97,8 +97,8 @@ func testTasks(t *tester) {
 		"create partition efi size=300", `format quick fs=Fat32 label="ESP"`,
 		"create partition msr size=16",
 		"Create partition primary size=19456 align=2048",
-		"select partition 3", "assign letter=C", "format quick fs=NTFS",
-		`label 系统`, "exit",
+		"select partition 3", "assign letter=C noerr", "format quick fs=NTFS",
+		"exit",
 	}
 	missing := ""
 	for _, w := range wants {
@@ -107,7 +107,7 @@ func testTasks(t *tester) {
 			break
 		}
 	}
-	t.check("DiskPart 脚本与 Python 版逐行一致", missing == "", "缺少: "+missing)
+	t.check("DiskPart 脚本关键行完整（先格式化、盘符 noerr 收尾）", missing == "", "缺少: "+missing)
 
 	mbr := tasks.NewSpec()
 	mbr.Table = "mbr"

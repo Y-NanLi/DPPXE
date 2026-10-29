@@ -140,6 +140,10 @@ type ControlServer struct {
 	nextJob atomic.Uint32
 	seq     atomic.Uint32
 
+	// 本批文件推送的分片进度（已发 / 总数），供界面进度条用。
+	pushTotal atomic.Int64
+	pushSent  atomic.Int64
+
 	// IdleTimeout 超过这个时间没收到任何报文就判离线。
 	IdleTimeout time.Duration
 }
@@ -360,6 +364,7 @@ func (c *ControlServer) dispatch(ses *ClientSession, msg *protocol.Message) {
 		ses.Received = idx + 1
 		ses.Total = job.Total
 		ses.mu.Unlock()
+		c.pushSent.Add(1)
 		if idx+1 >= job.Total {
 			c.notify()
 		}
@@ -520,6 +525,17 @@ func (c *ControlServer) PushFile(path, targetDir string) error {
 	}
 	c.notify()
 	return nil
+}
+
+// BeginPush 开始一批文件推送，重置进度计数（totalChunks = 本批所有文件的总分片数）。
+func (c *ControlServer) BeginPush(totalChunks int64) {
+	c.pushTotal.Store(totalChunks)
+	c.pushSent.Store(0)
+}
+
+// PushProgress 返回（已发分片, 总片数）。
+func (c *ControlServer) PushProgress() (int64, int64) {
+	return c.pushSent.Load(), c.pushTotal.Load()
 }
 
 // Snapshot 线程安全快照，供 UI 遍历。

@@ -29,7 +29,7 @@ import (
 const HeartbeatSec = 20
 
 // VersionWord 握手用的版本字（主版本<<16 | 次版本）。
-const VersionWord = (1 << 16) | 2 // 1.2（主版本<<16 | 次版本）
+const VersionWord = (1 << 16) | 3 // 1.3（主版本<<16 | 次版本）
 
 // Callbacks 界面回调（控制台版本可全为 nil）。
 type Callbacks struct {
@@ -209,10 +209,8 @@ func (c *Client) RunForever() {
 		fmt.Println("Ctrl+C 退出；连不上会一直自动重连")
 	}
 
-	// PE 里把同目录的 TightVNC 服务端拉起来，控制端才能 VNC 连进来。
-	if IsPE() {
-		c.startVNC()
-	}
+	// 同目录有 tvnserver 就拉起来（PE 和已装系统都适用），先放行防火墙再启动。
+	c.startVNC()
 
 	backoff := 3
 	for {
@@ -406,6 +404,17 @@ func (c *Client) reportDisks() {
 	}
 }
 
+// allowFirewall 给程序加一条入站放行规则（避免 Windows 防火墙弹"已阻止"）。
+// 需要管理员权限；非管理员会失败（返回 false）。
+func allowFirewall(program string) bool {
+	_ = exec.Command("netsh", "advfirewall", "firewall", "delete", "rule", "name=DPPXE-VNC").Run()
+	cmd := exec.Command("netsh", "advfirewall", "firewall", "add", "rule",
+		"name=DPPXE-VNC", "dir=in", "action=allow",
+		"program="+program, "enable=yes", "profile=any")
+	hideWindow(cmd)
+	return cmd.Run() == nil
+}
+
 // startVNC 拉起同目录的 TightVNC 服务端（PE 镜像里原版就带着）。
 func (c *Client) startVNC() {
 	if c.vncRun {
@@ -424,6 +433,12 @@ func (c *Client) startVNC() {
 		// 先关掉 VNC 认证（否则服务端报 "Server is not configured properly"），
 		// 再拉起服务端，让它读到新配置。
 		ensureVNCNoAuth()
+		// 先放行防火墙，再启动 tvnserver（顺序反了会弹"防火墙已阻止"）
+		if allowFirewall(exe) {
+			c.Log("已放行防火墙（tvnserver 入站 5900）")
+		} else {
+			c.Log("防火墙放行失败（可能需要管理员权限），首次启动可能弹窗")
+		}
 		cmd := exec.Command(exe, "-run")
 		cmd.Dir = filepath.Dir(exe)
 		hideWindow(cmd)
@@ -484,12 +499,23 @@ func (c *Client) runCommand(msg *protocol.Message) {
 			eng.ExecRaw("STREAMINSTALL " + params)
 		}
 	case protocol.OpFixBoot, protocol.OpRebuildMBR:
-		// payload 是原始命令行（format / bcdboot）
+		// payload 是原始命令行（bcdboot / bcdedit / bootsect）
+		c.Log("收到引导修复指令")
 		for _, line := range strings.Split(string(msg.Payload), "\r\n") {
-			if strings.TrimSpace(line) != "" {
-				eng.Run(strings.TrimSpace(line), true, 3600)
+			cmd := strings.TrimSpace(line)
+			if cmd == "" {
+				continue
+			}
+			c.Log("执行：" + cmd)
+			rc, out := eng.Run(cmd, true, 1800)
+			if out != "" {
+				c.Log(tailText(out, 400))
+			}
+			if rc != 0 {
+				c.Log(fmt.Sprintf("命令返回 %d", rc))
 			}
 		}
+		c.Log("引导修复完成")
 	case protocol.OpInjectClient:
 		eng.cmdINJECTCLIENT(orDefault(msg.Text, "C:"))
 	case protocol.OpInjectVNC:

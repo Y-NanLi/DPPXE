@@ -148,6 +148,12 @@ function applyState(st) {
   // 分区页磁盘
   syncDisks(st.disks || []);
 
+  // 发送文件真实进度（已发分片 / 总片数）
+  if (st.file_total > 0) {
+    const pct = Math.min(100, Math.round((st.file_sent || 0) * 100 / st.file_total));
+    $('sendBar').style.width = pct + '%';
+  }
+
   // 日志
   if (st.logs && st.logs.length) {
     appendLogs(st.logs);
@@ -389,7 +395,7 @@ $('menuBtn').onclick = (ev) => {
 
 async function about() {
   await info('关于',
-    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.2')}<br><br>`
+    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.3')}<br><br>`
     + `按 DP-PXE Server 1.6.9 的界面与功能重写的 Go 版本（原 Python/PySide6 版重构）。<br>`
     + `网络启动（DHCP/TFTP/HTTP）走标准协议；控制通道为按原协议风格重写的实现，`
     + `需配合本项目自带的被控端 / 模拟器演示。`);
@@ -570,12 +576,12 @@ $('btnRemoveFile').onclick = () => {
 $('btnSendFiles').onclick = async () => {
   if (!fileItems.length) { await info('提示', '文件列表为空'); return; }
   const mode = document.querySelector('input[name=filemode]:checked').value;
-  const r = await cmd('sendFiles', {
+  $('sendBar').style.width = '0%'; // 由状态轮询按真实分片进度推进，别提前跑满
+  await cmd('sendFiles', {
     files: fileItems.map((f) => f.path),
     target: $('recvPath').value.trim() || (cfg && cfg.recv_path),
     mode: mode === 'p2p' ? 'P2P' : '单播',
   });
-  if (r.ok) $('sendBar').style.width = '100%';
 };
 
 $('recvPath').addEventListener('change', () => {
@@ -585,7 +591,6 @@ $('recvPath').addEventListener('change', () => {
 /* ---------------------------------------------------------------- 4. 高级分区 */
 
 const FS_LIST = ['NTFS', 'FAT32', 'exFAT'];
-const LABEL_LIST = ['系统', '软件', '文档', '数据', '备份', '其他'];
 
 function buildPartRows() {
   const box = $('partRows');
@@ -597,29 +602,61 @@ function buildPartRows() {
     row.innerHTML = `<span class="idx">${i + 1}:</span>
       <select>${FS_LIST.map((f) => `<option>${f}</option>`).join('')}</select>
       <input type="number" min="1" max="20000" value="20" class="size-in">
-      <span>卷标:</span>
-      <input type="text" class="label-in" value="${LABEL_LIST[i]}">
       <label class="check prim" style="display:none"><input type="checkbox" class="primary-in"${i === 0 ? ' checked' : ''}>主分区</label>`;
     box.appendChild(row);
     const els = {
       row,
       fs: row.querySelector('select'),
       size: row.querySelector('.size-in'),
-      label: row.querySelector('.label-in'),
       primary: row.querySelector('.primary-in'),
       prim: row.querySelector('.prim'),
     };
     els.fs.onchange = () => schedulePreview();
-    els.size.onchange = () => schedulePreview();
-    els.label.onchange = () => schedulePreview();
+    els.size.onchange = () => rebalanceSizes(i);
     els.primary.onchange = () => { enforcePrimaryPrefix(i); schedulePreview(); };
     partRowEls.push(els);
   }
 }
 
+/* 改一个分区大小时，其余分区自动分摊剩余空间（按现有比例；最后一个吃零头） */
+function rebalanceSizes(editedIdx) {
+  const n = partCount();
+  if (n < 1) return;
+  let usable = parseInt($('spTotal').value, 10) || 60;
+  if (partTable() === 'gpt') { // 扣掉 ESP(300MB) + MSR(16MB)
+    if ($('ckNewEsp').checked) usable -= 0.3;
+    if ($('ckMsr').checked) usable -= 0.016;
+  }
+  usable = Math.max(n, Math.floor(usable));
+  let edited = parseInt(partRowEls[editedIdx].size.value, 10) || 1;
+  edited = Math.max(1, Math.min(edited, usable - (n - 1)));
+  partRowEls[editedIdx].size.value = edited;
+  const others = [];
+  for (let j = 0; j < n; j++) if (j !== editedIdx) others.push(j);
+  if (others.length) {
+    const remaining = usable - edited;
+    const curSum = others.reduce((s, j) => s + (parseInt(partRowEls[j].size.value, 10) || 0), 0);
+    let acc = 0;
+    others.forEach((j, k) => {
+      let v;
+      if (k === others.length - 1) {
+        v = remaining - acc; // 最后一个吃零头
+      } else if (curSum > 0) {
+        v = Math.round(remaining * (parseInt(partRowEls[j].size.value, 10) || 0) / curSum);
+      } else {
+        v = Math.round(remaining / others.length);
+      }
+      v = Math.max(1, v);
+      partRowEls[j].size.value = v;
+      acc += v;
+    });
+  }
+  schedulePreview();
+}
+
 function partCount() {
   const v = document.querySelector('input[name=partCount]:checked').value;
-  return v === 'custom' ? Math.max(1, Math.min(6, parseInt($('spCustom').value, 10) || 3)) : parseInt(v, 10);
+  return v === 'custom' ? Math.max(1, Math.min(6, parseInt($('spCustom').value, 10) || 2)) : parseInt(v, 10);
 }
 
 function partTable() {
@@ -665,7 +702,6 @@ function currentSpec() {
     total_gb: parseInt($('spTotal').value, 10) || 60,
     count: n,
     sizes_gb: partRowEls.slice(0, n).map((r) => parseInt(r.size.value, 10) || 0),
-    labels: partRowEls.slice(0, n).map((r) => r.label.value),
     filesystems: partRowEls.slice(0, n).map((r) => r.fs.value),
     rebuild_mbr: $('ckMbr').checked,
     keep_esp: $('ckKeepEsp').checked,
@@ -699,7 +735,6 @@ async function applyDefaultSizes() {
   r.data.forEach((sz, i) => {
     if (partRowEls[i]) {
       partRowEls[i].size.value = sz;
-      if (!partRowEls[i].label.value) partRowEls[i].label.value = LABEL_LIST[i] || '';
     }
   });
   schedulePreview();
@@ -735,10 +770,6 @@ $('ckAlign').addEventListener('change', schedulePreview);
 $('spAlign').addEventListener('change', schedulePreview);
 
 $('btnDefaultSizes').onclick = applyDefaultSizes;
-$('btnClearLabels').onclick = () => {
-  partRowEls.forEach((r) => { r.label.value = ''; });
-  schedulePreview();
-};
 
 $('btnShowScript').onclick = async () => {
   const r = await api('partitionScript', currentSpec());
@@ -759,7 +790,7 @@ $('btnPartReset').onclick = () => {
   $('ckAlign').checked = true;
   $('spAlign').value = 2048;
   $('ckMbr').checked = false;
-  partRowEls.forEach((r, i) => { r.label.value = LABEL_LIST[i]; r.fs.value = 'NTFS'; });
+  partRowEls.forEach((r) => { r.fs.value = 'NTFS'; });
   renderDiskList();
   syncMbrUi();
   onStructureChange();
@@ -825,11 +856,6 @@ function applyDisk(row) {
     const d = diskItems[row];
     const gb = parseInt(d.size_gb, 10) || 0;
     if (gb > 0) $('spTotal').value = Math.min(Math.max(gb, 8), 20000);
-    const style = (d.style || '').toUpperCase();
-    if (style === 'GPT' || style === 'MBR') {
-      $('cbTable').value = style;
-      syncMbrUi();
-    }
   }
   onStructureChange();
 }
@@ -837,16 +863,27 @@ function applyDisk(row) {
 /* ---------------------------------------------------------------- 5. 系统安装 */
 
 function fillPartSelects() {
-  const opts = 'CDEFGH'.split('').map((c) => `<option>${c}:\\</option>`).join('');
+  const opts = 'CDEFGH'.split('').map((c) => `<option value="${c}:\\">${c}:\\</option>`).join('');
   $('cbInstall').innerHTML = opts;
-  $('cbBoot').innerHTML = opts;
   $('cbStreamPart').innerHTML = opts;
+  syncBootSelect();
 }
-fillPartSelects();
+
+/* 引导分区跟随固件自动决定：UEFI → ESP（通常无盘符）、Legacy → 系统分区，都由 bcdboot 自动探测 */
+function syncBootSelect() {
+  const sel = $('cbBoot');
+  if (!sel) return;
+  sel.innerHTML = firmware() === 'legacy'
+    ? '<option value="auto">自动检测（系统分区）</option>'
+    : '<option value="auto">自动检测（ESP）</option>';
+}
 
 function firmware() {
   return document.querySelector('input[name=fw]:checked').value;
 }
+
+fillPartSelects();
+document.querySelectorAll('input[name=fw]').forEach((r) => r.addEventListener('change', syncBootSelect));
 
 $('btnAutopart').onclick = () => cmd('autopart', {
   disk: parseInt($('spDisk').value, 10) || 0,
@@ -855,7 +892,7 @@ $('btnAutopart').onclick = () => cmd('autopart', {
 });
 $('btnRebuildMbr').onclick = () => cmd('rebuildMbr', { disk: parseInt($('spDisk').value, 10) || 0 });
 $('btnFixboot').onclick = () => cmd('fixboot', {
-  win: $('cbInstall').value, boot: $('cbBoot').value, firmware: firmware(),
+  win: $('cbInstall').value, boot: 'auto', firmware: firmware(),
 });
 $('btnUnattend').onclick = () => cmd('unattend', { target: $('cbInstall').value });
 $('btnInstall').onclick = () => cmd('install', {

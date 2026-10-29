@@ -28,7 +28,7 @@ import (
 const assignableLetters = "CDEFGHIJKLMNOPQRSTUVWXYZ"
 
 var (
-	reAssignLetter = regexp.MustCompile(`(?i)^(\s*assign\s+letter\s*=\s*)([A-Za-z])\s*$`)
+	reAssignLetter = regexp.MustCompile(`(?i)^(\s*assign\s+letter\s*=\s*)([A-Za-z])(\s+noerr)?\s*$`)
 	reSelectVolume = regexp.MustCompile(`(?i)^(\s*select\s+volume\s+)([A-Za-z])\s*$`)
 )
 
@@ -88,7 +88,7 @@ func rewriteAssignLetters(script string, picked []string) (string, map[string]st
 				if _, done := mapping[old]; !done {
 					mapping[old] = newL
 				}
-				lines[i] = m[1] + newL + cr
+				lines[i] = m[1] + newL + m[3] + cr
 				idx++
 			}
 			continue

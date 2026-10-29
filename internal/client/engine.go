@@ -1068,20 +1068,69 @@ func (e *Engine) cmdUNCOMPRESS(rest string) {
 	if len(a) > 1 {
 		target = a[1]
 	}
+	// 统一成 C:\ 形式：wimlib 和 dism 都需要目录（带反斜杠）
+	targetDir := strings.TrimRight(target, "\\") + "\\"
 	compact := len(a) > 2 && strings.EqualFold(a[2], "TRUE")
-	e.log(fmt.Sprintf("开始还原 %s 卷%d -> %s（压缩=%v）", image, index, target, compact))
+	e.log(fmt.Sprintf("开始还原 %s 卷%d -> %s（压缩=%v）", image, index, targetDir, compact))
+	if e.dryRun {
+		return
+	}
+	// 预检：目标分区是不是 NTFS。wimlib 在 FAT32/exFAT 上设置属性会失败（错误 48）。
+	if _, vol := e.Run(fmt.Sprintf(`fsutil fsinfo volumeinfo %s`, strings.TrimRight(targetDir, "\\")), true, 60); vol != "" {
+		if !strings.Contains(strings.ToUpper(vol), "NTFS") {
+			e.log("警告：目标分区不是 NTFS，wimlib 设置属性会失败；请确认安装分区是否正确、或先格式化为 NTFS")
+		}
+	}
+	// 预检：目标剩余空间（解压后一般需要镜像大小的 2 倍左右）
+	if st, err := os.Stat(image); err == nil {
+		if free, err := freeSpace(targetDir); err == nil && free < uint64(st.Size())*2 {
+			e.log(fmt.Sprintf("警告：目标分区空间可能不足（镜像 %.1fGB，剩余 %.1fGB，建议 ≥ %.1fGB）",
+				float64(st.Size())/1e9, float64(free)/1e9, float64(st.Size())*2/1e9))
+		}
+	}
 	wimboot := ""
 	if compact {
 		wimboot = "--wimboot"
 	}
-	rc, _ := e.Run(fmt.Sprintf(`wimlib-imagex.exe apply "%s" %d "%s" %s --check`,
-		image, index, target, wimboot), true, 7200)
-	if rc != 0 {
-		e.log("wimlib 不可用，改用 dism")
-		e.Run(fmt.Sprintf(`dism /Apply-Image /ImageFile:"%s" /Index:%d /ApplyDir:"%s"`,
-			image, index, target), true, 7200)
+	// 1) 首选 wimlib（快）。目标路径不加引号：`"C:\"` 结尾的 \" 会被当成转义引号。
+	rc, out := e.Run(fmt.Sprintf(`wimlib-imagex.exe apply "%s" %d %s %s --check`,
+		image, index, targetDir, wimboot), true, 7200)
+	if rc == 0 {
+		e.log("还原完成 " + targetDir)
+		return
 	}
-	e.log("还原完成 " + target)
+	// 2) 回退 dism。/ApplyDir 也不加引号（同上，否则 dism 报 123 无效名称）。
+	e.log(fmt.Sprintf("wimlib 失败（%d），改用 dism：%s", rc, tailText(out, 500)))
+	rc2, out2 := e.Run(fmt.Sprintf(`dism /Apply-Image /ImageFile:"%s" /Index:%d /ApplyDir:%s`,
+		image, index, targetDir), true, 7200)
+	if rc2 != 0 {
+		e.log(fmt.Sprintf("dism 还原失败（%d）：%s", rc2, tailText(out2, 500)))
+		return
+	}
+	e.log("还原完成 " + targetDir)
+}
+
+// tailText 取文本末尾 max 个字符（错误信息通常在最后）。
+func tailText(s string, max int) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return "…" + string(r[len(r)-max:])
+}
+
+// freeSpace 返回指定卷的剩余空间（字节）。
+func freeSpace(path string) (uint64, error) {
+	ptr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	var free, total, avail uint64
+	if err := windows.GetDiskFreeSpaceEx(ptr, &free, &total, &avail); err != nil {
+		return 0, err
+	}
+	return free, nil
 }
 
 func (e *Engine) cmdCOMPRESS(rest string) {
@@ -1107,10 +1156,6 @@ func (e *Engine) cmdFIXBOOT(rest string) {
 	if len(a) > 0 {
 		win = a[0]
 	}
-	boot := ""
-	if len(a) > 1 {
-		boot = a[1]
-	}
 	opt := "0"
 	if len(a) > 2 {
 		opt = a[2]
@@ -1123,22 +1168,16 @@ func (e *Engine) cmdFIXBOOT(rest string) {
 		firmware = "UEFI"
 	}
 	winDir := filepath.Join(strings.TrimRight(win, "\\")+"\\", "Windows")
-	if boot != "" && !strings.EqualFold(boot, "0") && !strings.EqualFold(boot, "AUTO") {
-		e.Run(fmt.Sprintf("format %s /q /y", boot), true, 600)
-	} else {
-		boot = ""
+	e.log(fmt.Sprintf("修复引导 %s 固件=%s", winDir, firmware))
+	// 不 format 引导分区（会误删系统盘）；bcdboot 不带 /f、/s（/f 必须配 /s），
+	// 让它自动用"固件标识的系统分区"（UEFI=ESP）并覆盖引导文件。
+	e.Run(fmt.Sprintf(`bcdboot.exe "%s"`, winDir), true, 1800)
+	if firmware != "BIOS" {
+		e.Run(`bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`, true, 120)
 	}
-	shown := boot
-	if shown == "" {
-		shown = "自动检测"
+	if firmware == "BIOS" {
+		e.Run(`bootsect.exe /nt60 SYS /mbr /force`, true, 600)
 	}
-	e.log(fmt.Sprintf("修复引导 %s 引导分区=%s 固件=%s", winDir, shown, firmware))
-	// 不带 /s 时 bcdboot 会自己找 EFI 系统分区，比硬给盘符可靠
-	sArg := ""
-	if boot != "" {
-		sArg = "/s " + boot
-	}
-	e.Run(fmt.Sprintf(`bcdboot.exe "%s" %s /f %s /l zh-cn`, winDir, sArg, firmware), true, 1800)
 }
 
 func (e *Engine) cmdREBUILDMBR(rest string) {
@@ -1288,8 +1327,14 @@ func (e *Engine) cmdINJECTCLIENT(rest string) {
 		e.log("复制失败：" + err.Error())
 		return
 	}
-	e.Run(fmt.Sprintf(`sc create DP-PXEClient binPath= "%s" start= auto obj= LocalSystem DisplayName= "DP-PXEClient"`, dst), true, 120)
-	e.log("注入客户端成功")
+	// 开机启动：写目标系统的 Run 键（PE 里写目标盘的离线 SOFTWARE hive，否则写本机）
+	root, loaded := e.loadTargetSoftware(target)
+	if root != "" {
+		e.Run(fmt.Sprintf(`reg add "%s\Microsoft\Windows\CurrentVersion\Run" /v DPPXEClient /t REG_SZ /d "%s --nogui" /f`,
+			root, dst), true, 120)
+	}
+	e.unloadTargetSoftware(loaded)
+	e.log("注入客户端成功（已设置开机启动）")
 }
 
 const unattendXML = `<?xml version="1.0" encoding="utf-8"?>
@@ -1372,16 +1417,87 @@ func (e *Engine) cmdINJECTVNC(rest string) {
 	if e.dryRun {
 		return
 	}
-	flag := "00000001"
-	if hidden {
-		flag = "00000000"
+	// 1) 复制 tvnserver.exe 到目标系统（优先 x64）
+	dstDir := filepath.Join(strings.TrimRight(target, "\\")+"\\", "Windows", "System32")
+	vncSrc := ""
+	for _, rel := range []string{
+		`Tool\TightVNC\Amd64\tvnserver.EXE`,
+		`Tool\TightVNC\X86\tvnserver.EXE`,
+		`tvnserver.exe`,
+		`vnc\tvnserver.exe`,
+	} {
+		if p := filepath.Join(e.client.ExeDir(), rel); fileExistsAny(p) {
+			vncSrc = p
+			break
+		}
 	}
-	reg := strings.Replace(tightVncReg,
-		`"RunControlInterface"=dword:00000001`,
-		`"RunControlInterface"=dword:`+flag, 1)
-	tmp := filepath.Join(os.Getenv("TEMP"), "TightVNC.reg")
-	_ = os.WriteFile(tmp, encodeGBK(reg), 0o644)
-	e.Run(fmt.Sprintf(`reg import "%s"`, tmp), true, 120)
+	dstVnc := filepath.Join(dstDir, "tvnserver.exe")
+	if vncSrc != "" {
+		_ = os.MkdirAll(dstDir, 0o755)
+		if err := copyFile(vncSrc, dstVnc); err != nil {
+			e.log("复制 tvnserver 失败：" + err.Error())
+		}
+	} else {
+		e.log("客户端目录里没有 tvnserver.exe，仅写注册表")
+	}
+	// 2) 写目标系统的 TightVNC 注册表（无密码）+ 开机启动 Run 键
+	flag := "1"
+	if hidden {
+		flag = "0"
+	}
+	root, loaded := e.loadTargetSoftware(target)
+	if root != "" {
+		key := root + `\TightVNC\Server`
+		vals := [][3]string{
+			{"UseVncAuthentication", "REG_DWORD", "0"},
+			{"UseControlAuthentication", "REG_DWORD", "0"},
+			{"UseMicrosoftLogon", "REG_DWORD", "0"},
+			{"RfbPort", "REG_DWORD", "5900"},
+			{"HttpPort", "REG_DWORD", "5800"},
+			{"AcceptRfbConnections", "REG_DWORD", "1"},
+			{"AcceptHttpConnections", "REG_DWORD", "1"},
+			{"EnableFileTransfers", "REG_DWORD", "1"},
+			{"AlwaysShared", "REG_DWORD", "1"},
+			{"LoopbackOnly", "REG_DWORD", "0"},
+			{"AllowLoopback", "REG_DWORD", "0"},
+			{"RunControlInterface", "REG_DWORD", flag},
+		}
+		for _, v := range vals {
+			e.Run(fmt.Sprintf(`reg add "%s" /v %s /t %s /d %s /f`, key, v[0], v[1], v[2]), true, 60)
+		}
+		// 注意：这里不再单独给 tvnserver 加 Run 键——改由被控端启动时先放行防火墙、
+		// 再拉起 tvnserver，避免防火墙在放行之前就弹"已阻止"。
+		// 顺手清掉旧版注入可能留下的 tvnserver Run 键（避免重复启动）。
+		e.Run(fmt.Sprintf(`reg delete "%s\Microsoft\Windows\CurrentVersion\Run" /v TightVNC /f`, root), true, 60)
+	}
+	e.unloadTargetSoftware(loaded)
+	e.log("注入 VNC 成功（已设置开机启动）")
+}
+
+// loadTargetSoftware 把目标系统（离线盘 target）的 SOFTWARE hive 挂到 HKLM\DPPXE_OFF，
+// 返回注册表根前缀 + 是否真的 load 了（供 unload）。在线系统直接返回本机 HKLM\Software。
+//
+// PE 里写 PE 自己的注册表重启就没了，必须写目标盘 Windows\System32\config\SOFTWARE。
+func (e *Engine) loadTargetSoftware(target string) (string, bool) {
+	if !e.pe {
+		return `HKLM\Software`, false
+	}
+	hive := filepath.Join(strings.TrimRight(target, "\\")+"\\", "Windows", "System32", "config", "SOFTWARE")
+	if !fileExistsAny(hive) {
+		e.log("目标系统 SOFTWARE 注册表不存在（系统是否已安装？）：" + hive)
+		return "", false
+	}
+	if rc, _ := e.Run(fmt.Sprintf(`reg load HKLM\DPPXE_OFF "%s"`, hive), true, 120); rc != 0 {
+		e.log("加载目标注册表失败：" + hive)
+		return "", false
+	}
+	return `HKLM\DPPXE_OFF`, true
+}
+
+func (e *Engine) unloadTargetSoftware(loaded bool) {
+	if loaded {
+		e.Run(`reg unload HKLM\DPPXE_OFF`, true, 120)
+	}
 }
 
 func (e *Engine) cmdINJECTPEDRV(rest string) {

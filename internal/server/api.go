@@ -38,6 +38,8 @@ type State struct {
 	VncViewer    string              `json:"vnc_viewer"`
 	ConfigDir    string              `json:"config_dir"`
 	LogDir       string              `json:"log_dir"`
+	FileSent     int64               `json:"file_sent"`
+	FileTotal    int64               `json:"file_total"`
 }
 
 // State 生成状态快照；since 为上次拿到的日志序号。
@@ -74,6 +76,11 @@ func (s *Server) State(since int64) State {
 		ips = append([]string{s.cfg.ServerIP}, ips...)
 	}
 
+	fileSent, fileTotal := int64(0), int64(0)
+	if s.control != nil {
+		fileSent, fileTotal = s.control.PushProgress()
+	}
+
 	return State{
 		Version:      config.AppVersion,
 		Running:      s.Running(),
@@ -95,6 +102,8 @@ func (s *Server) State(since int64) State {
 		VncViewer:    s.cfg.VncViewer,
 		ConfigDir:    config.ConfigDir(),
 		LogDir:       s.LogDir,
+		FileSent:     fileSent,
+		FileTotal:    fileTotal,
 	}
 }
 
@@ -238,6 +247,24 @@ func (s *Server) Command(cmd string, a Args) Result {
 			return errResult(err.Error())
 		}
 		return okResult("", files)
+	case "pickPathFolder":
+		p, err := PickFolder(orDefault(a.str("title"), "选择文件夹"), "")
+		if err != nil || p == "" {
+			return errResult("已取消")
+		}
+		return okResult(p, p)
+	case "pickPathFile":
+		p, err := PickFile(orDefault(a.str("title"), "选择文件"), "", a.str("filter"))
+		if err != nil || p == "" {
+			return errResult("已取消")
+		}
+		return okResult(p, p)
+	case "pickSavePath":
+		p, err := PickSave(orDefault(a.str("title"), "另存为"), orDefault(a.str("name"), ""), a.str("filter"))
+		if err != nil || p == "" {
+			return errResult("已取消")
+		}
+		return okResult(p, p)
 	case "pickFolder":
 		p, err := PickFolder("选择文件夹", "")
 		if err != nil || p == "" {
@@ -346,7 +373,7 @@ func (s *Server) Command(cmd string, a Args) Result {
 		fw := orDefault(a.str("firmware"), "auto")
 		winDir := strings.TrimRight(win, "\\") + `\Windows`
 		cmds := tasks.BuildFixboot(winDir, boot, fw)
-		n := s.Send(protocol.OpFixBoot, nil, cmds[1], []byte(strings.Join(cmds, "\r\n")))
+		n := s.Send(protocol.OpFixBoot, nil, cmds[0], []byte(strings.Join(cmds, "\r\n")))
 		return okResult(fmt.Sprintf("引导修复(%s) -> %d 台", fw, n), n)
 	case "unattend":
 		target := orDefault(a.str("target"), `C:\`)

@@ -161,8 +161,11 @@ func BuildDiskpart(sp *PartitionSpec) string {
 		}
 	}
 
-	type labelPair struct{ letter, label string }
-	var labels []labelPair
+	type assignPair struct {
+		partNo int
+		letter string
+	}
+	var assigns []assignPair
 	partNo := 0 // 磁盘上的分区序号，用于显式 select
 	if table == "gpt" && !sp.KeepESP {
 		if createESP {
@@ -179,7 +182,6 @@ func BuildDiskpart(sp *PartitionSpec) string {
 		if fs == "" {
 			fs = "NTFS"
 		}
-		label := at(sp.Labels, idx)
 		kind := "primary"
 		if logical {
 			kind = "logical"
@@ -198,12 +200,11 @@ func BuildDiskpart(sp *PartitionSpec) string {
 		// 显式选中刚建的分区：create 之后选择集不一定是它（format 打到 MSR 上会报参数无效）
 		partNo++
 		out = append(out, fmt.Sprintf("select partition %d", partNo))
-		letter := string(letters[min(idx, len(letters)-1)])
-		out = append(out, "assign letter="+letter)
+		// 先格式化（不依赖盘符）；盘符/卷标最后统一分配。
+		// 否则某个 assign letter 失败会让 diskpart 中止整个脚本，后面的分区/格式化全丢。
 		out = append(out, "format quick fs="+fs)
-		if label != "" {
-			labels = append(labels, labelPair{letter, label})
-		}
+		letter := string(letters[min(idx, len(letters)-1)])
+		assigns = append(assigns, assignPair{partNo, letter})
 		return out
 	}
 
@@ -237,15 +238,13 @@ func BuildDiskpart(sp *PartitionSpec) string {
 		}
 	}
 
-	if len(labels) > 0 {
-		lines = append(lines, "rem 卷标单独设置（放在最后，失败也不影响分区）")
-		for _, lp := range labels {
-			lines = append(lines, "select volume "+lp.letter)
-			if strings.Contains(lp.label, " ") {
-				lines = append(lines, fmt.Sprintf(`label "%s"`, lp.label))
-			} else {
-				lines = append(lines, "label "+lp.label)
-			}
+	// 所有分区建好并格式化后，再统一分配盘符。
+	// assign 加 noerr：某个盘符被占用也不会中断后续（此时分区/格式化早已完成）。
+	if len(assigns) > 0 {
+		lines = append(lines, "rem 最后统一分配盘符（noerr：失败不中断）")
+		for _, a := range assigns {
+			lines = append(lines, fmt.Sprintf("select partition %d", a.partNo))
+			lines = append(lines, "assign letter="+a.letter+" noerr")
 		}
 	}
 
@@ -291,18 +290,29 @@ func resolveMBRPrimaries(sp *PartitionSpec, count int) []bool {
 }
 
 // BuildFixboot 引导修复：先格式化引导分区，再 bcdboot。
+// BuildFixboot 修复引导。
+//
+// 关键点：
+//   - **不 format 引导分区**：bcdboot 会自动找 ESP / 系统分区并覆盖引导文件，
+//     误把 C: 当引导分区格式化会把刚装好的 Windows 删掉。
+//   - **不带 /s**：让 bcdboot 自己找 ESP（PE 里 ESP 常常没盘符），比硬给盘符可靠。
+//   - **UEFI 追加启动顺序修复**：把 Windows Boot Manager 提到固件启动顺序最前，
+//     否则固件仍可能优先走网络 PXE，表现为"一直进 PE"。
 func BuildFixboot(winDir, bootPart, firmware string) []string {
-	fw := "/f ALL"
-	switch firmware {
-	case "uefi":
-		fw = "/f UEFI"
-	case "legacy":
-		fw = "/f BIOS"
+	// 关键：bcdboot 的 /f 必须和 /s 一起用（帮助里写明"/f 与 /s 一起使用"），
+	// 单独写 /f ALL 是非法参数（返回 87），而 ESP 在 PE 里通常没有盘符、加不了 /s。
+	// 所以这里不带 /f、不带 /s，让 bcdboot 用"固件标识的系统分区"（UEFI 下就是 ESP）。
+	cmds := []string{
+		fmt.Sprintf(`bcdboot.exe "%s"`, winDir),
 	}
-	return []string{
-		fmt.Sprintf("Format %s /q /y", bootPart),
-		fmt.Sprintf("bcdboot.exe %s /s %s %s /l zh-cn", winDir, bootPart, fw),
+	if firmware != "legacy" {
+		// UEFI：把 Windows Boot Manager 提到固件启动顺序最前（PE 里可能失败，失败不影响引导文件）
+		cmds = append(cmds, `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`)
 	}
+	if firmware == "legacy" {
+		cmds = append(cmds, `bootsect.exe /nt60 SYS /mbr /force`)
+	}
+	return cmds
 }
 
 // BuildRebuildMBR 重建主引导：只对 MBR 盘有效，GPT 盘会被跳过。

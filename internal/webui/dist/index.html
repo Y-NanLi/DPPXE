@@ -10,10 +10,10 @@
 
   <!-- ================= 标题栏 ================= -->
   <header class="titlebar">
-    <div class="logo">1.2</div>
+    <div class="logo">1.3</div>
     <div class="titles">
       <h1>DP-PXE</h1>
-      <div class="sub">Version <span id="appVer">1.2</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
+      <div class="sub">Version <span id="appVer">1.3</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
     </div>
     <div class="spacer"></div>
     <button id="menuBtn" class="titlebtn" title="菜单">☰</button>
@@ -179,7 +179,7 @@
               </div>
               <div class="row">
                 <label class="radio"><input type="radio" name="partCount" value="custom">自定义(C):</label>
-                <input type="number" id="spCustom" min="1" max="6" value="3" style="width:70px">
+                <input type="number" id="spCustom" min="1" max="6" value="2" style="width:70px">
                 <span class="hint">个分区</span>
               </div>
               <label class="check" title="只有 MBR 分区表能用；分区表选 GPT 时这一项不可用（GPT 盘用「引导修复」bcdboot）"><input type="checkbox" id="ckMbr">重建主引导记录(MBR)</label>
@@ -196,7 +196,6 @@
               <div id="partRows" style="display:flex;flex-direction:column;gap:3px;margin-top:2px"></div>
               <div class="row" style="margin-top:4px">
                 <button class="ghost" id="btnDefaultSizes" style="width:96px">默认大小</button>
-                <button class="ghost" id="btnClearLabels" style="width:110px">清空所有卷标</button>
               </div>
               <div class="row" style="margin-top:4px">
                 <label class="check"><input type="checkbox" id="ckAlign" checked>对齐分区到此扇区数的整数倍:</label>
@@ -265,8 +264,8 @@
             <div class="card" style="width:250px">
               <div class="card-title">分区指定</div>
               <div class="row"><span style="width:88px">指定安装分区</span><select id="cbInstall" class="grow"></select></div>
-              <div class="row"><span style="width:88px">指定引导分区</span><select id="cbBoot" class="grow"></select></div>
-              <div class="hint">留空则由客户端自动探测</div>
+              <div class="row"><span style="width:88px">指定引导分区</span><select id="cbBoot" class="grow"><option value="auto">自动检测（ESP）</option></select></div>
+              <div class="hint">UEFI 自动找 ESP；Legacy 自动找系统分区</div>
             </div>
           </div>
         </div>
