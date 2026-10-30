@@ -204,58 +204,60 @@ jobs:
           body=$(printf '%s' "$resp" | sed '$d')
           echo "   HTTP ${code:-<空>}"
 
-          # 只接受 200（已存在）和 404（不存在），其它一律报错退出——
-          # 不能像之前那样带着 id=null 继续往下走。
+          # Gitee 的坑：tag 不存在时 /releases/tags/{tag} 返回 **200 + 响应体 null**（不是 404）。
+          # 所以按「能不能取到数字 id」来判断，取不到就走创建。
           case "$code" in
-            200)
-              RID=$(printf '%s' "$body" | jq -r '.id // empty' 2>/dev/null)
-              case "$RID" in
-                ''|*[!0-9]*)
-                  echo "::error::解析 Release id 失败，响应片段：$(printf '%s' "$body" | head -c 300)"
-                  exit 1 ;;
-              esac
-              echo "已存在 Release id=${RID}，更新标题与说明"
-              $CURL -X PATCH "${API}/releases/${RID}" \
-                -H 'Content-Type: application/json;charset=UTF-8' \
-                -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
-                      '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null || true
-
-              echo "== 删除同名旧附件（避免重名上传失败）=="
-              listing=$($CURL -G "${API}/releases/${RID}/attach_files" \
-                         --data-urlencode "access_token=${GITEE_TOKEN}" || true)
-              if printf '%s' "$listing" | jq -e 'type=="array"' > /dev/null 2>&1; then
-                printf '%s' "$listing" | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do
-                  for want in $ASSETS; do
-                    if [ "$aname" = "$want" ]; then
-                      echo "  删除 $aname (id=$aid)"
-                      $CURL -X DELETE "${API}/releases/${RID}/attach_files/${aid}" \
-                           --data-urlencode "access_token=${GITEE_TOKEN}" > /dev/null || true
-                    fi
-                  done
-                done
-              else
-                echo "   （列附件失败，跳过删除，直接尝试上传）"
-              fi
-              ;;
-            404)
-              echo "未找到，创建 Release"
-              created=$($CURL -X POST "${API}/releases" \
-                -H 'Content-Type: application/json;charset=UTF-8' \
-                -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
-                      '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" || true)
-              RID=$(printf '%s' "$created" | jq -r '.id // empty' 2>/dev/null)
-              case "$RID" in
-                ''|*[!0-9]*)
-                  echo "::error::创建 Gitee Release 失败，响应片段：$(printf '%s' "$created" | head -c 500)"
-                  exit 1 ;;
-              esac
-              echo "新建 Release id=${RID}"
-              ;;
+            200|404) ;;
             *)
               echo "::error::查询 Release 失败（HTTP ${code:-空}，多为跨境超时），重跑本作业即可"
-              exit 1
-              ;;
+              exit 1 ;;
           esac
+
+          RID=""
+          if [ "$code" = "200" ]; then
+            RID=$(printf '%s' "$body" | jq -r 'if type=="object" then (.id // empty) else empty end' 2>/dev/null || true)
+            case "$RID" in
+              ''|*[!0-9]*) RID="" ;;
+            esac
+          fi
+
+          if [ -z "$RID" ]; then
+            echo "该 tag 尚无 Release（响应 $(printf '%s' "$body" | head -c 40)），创建新的"
+            created=$($CURL -X POST "${API}/releases" \
+              -H 'Content-Type: application/json;charset=UTF-8' \
+              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
+                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" || true)
+            RID=$(printf '%s' "$created" | jq -r 'if type=="object" then (.id // empty) else empty end' 2>/dev/null || true)
+            case "$RID" in
+              ''|*[!0-9]*)
+                echo "::error::创建 Gitee Release 失败，响应片段：$(printf '%s' "$created" | head -c 500)"
+                exit 1 ;;
+            esac
+            echo "新建 Release id=${RID}"
+          else
+            echo "已存在 Release id=${RID}，更新标题与说明"
+            $CURL -X PATCH "${API}/releases/${RID}" \
+              -H 'Content-Type: application/json;charset=UTF-8' \
+              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
+                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null || true
+
+            echo "== 删除同名旧附件（避免重名上传失败）=="
+            listing=$($CURL -G "${API}/releases/${RID}/attach_files" \
+                       --data-urlencode "access_token=${GITEE_TOKEN}" || true)
+            if printf '%s' "$listing" | jq -e 'type=="array"' > /dev/null 2>&1; then
+              printf '%s' "$listing" | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do
+                for want in $ASSETS; do
+                  if [ "$aname" = "$want" ]; then
+                    echo "  删除 $aname (id=$aid)"
+                    $CURL -X DELETE "${API}/releases/${RID}/attach_files/${aid}" \
+                         --data-urlencode "access_token=${GITEE_TOKEN}" > /dev/null || true
+                  fi
+                done
+              done
+            else
+              echo "   （列附件失败或为空，跳过删除，直接尝试上传）"
+            fi
+          fi
 
           echo "== 上传附件 =="
           for f in dist/DP-PXE.exe dist/DP-PXEClient.exe netboot.zip AutoCommand.zip; do
