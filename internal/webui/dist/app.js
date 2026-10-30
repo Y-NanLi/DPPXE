@@ -14,7 +14,6 @@ let fileItems = [];
 let diskItems = [];
 let diskSig = "";
 let partRowEls = [];
-let logCollapsed = false;
 let starting = false;
 let pollTimer = null;
 let scriptTemplate = "";
@@ -131,7 +130,10 @@ function applyState(st) {
   $('btnStart').style.display = st.running ? 'none' : '';
   $('btnStop').style.display = st.running ? '' : 'none';
   $('lblAdmin').style.display = st.admin ? 'none' : '';
-  $('btnLogToggle').textContent = logCollapsed ? '显示日志' : '隐藏日志';
+
+  // 软件设置页：运行目录
+  $('lblCfgDir').textContent = st.config_dir || '—';
+  $('lblLogDir').textContent = st.log_dir || '—';
 
   // 客户端表
   clients = st.clients || [];
@@ -332,11 +334,26 @@ function appendLogs(logs) {
   box.scrollTop = box.scrollHeight;
 }
 
-$('btnLogToggle').onclick = () => {
-  logCollapsed = !logCollapsed;
-  $('logPanel').classList.toggle('collapsed', logCollapsed);
-  $('btnLogToggle').textContent = logCollapsed ? '显示日志' : '隐藏日志';
-};
+/* ---------------------------------------------------------------- 左侧导航 */
+
+/* 首页 / 日志 / 软件设置：切换 .page 的 active 状态。
+   启动/停止服务按钮在导航栏底部，id 没变，逻辑照旧。 */
+function setPage(name) {
+  document.querySelectorAll('.nav-item').forEach((el) => {
+    el.classList.toggle('active', el.dataset.page === name);
+  });
+  document.querySelectorAll('.page').forEach((el) => {
+    el.classList.toggle('active', el.id === 'page-' + name);
+  });
+  if (name === 'log') {
+    const lp = $('logPanel');
+    lp.scrollTop = lp.scrollHeight; // 进日志页直接停在最新一行
+  }
+}
+
+document.querySelectorAll('.nav-item').forEach((el) => {
+  el.addEventListener('click', () => setPage(el.dataset.page));
+});
 
 /* ---------------------------------------------------------------- 菜单 */
 
@@ -395,7 +412,7 @@ $('menuBtn').onclick = (ev) => {
 
 async function about() {
   await info('关于',
-    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.5')}<br><br>`
+    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '2.0')}<br><br>`
     + `按 DP-PXE Server 1.6.9 的界面与功能重写的 Go 版本（原 Python/PySide6 版重构）。<br>`
     + `网络启动（DHCP/TFTP/HTTP）走标准协议；控制通道为按原协议风格重写的实现，`
     + `需配合本项目自带的被控端 / 模拟器演示。`);

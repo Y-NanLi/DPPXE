@@ -1,7 +1,7 @@
-# DP-PXE —— Go 重构版（v1.5）
+# DP-PXE —— Go 重构版（v2.0）
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
+[![Version](https://img.shields.io/badge/version-2.0-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
 
 **DP-PXE** 是一个 Windows 平台的 **PXE 网启 + 批量装机** 服务端 / 被控端工具：
@@ -91,8 +91,17 @@ test.bat       :: 内置自检（33 项）
 
 | 文件 | 子系统 | 用途 |
 | --- | --- | --- |
-| `bin\DP-PXE.exe` | GUI（`-H windowsgui`） | 图形界面服务端，双击即用 |
-| `bin\DP-PXEClient.exe` | 控制台 | 被控端 / 模拟器 / 无界面服务端（**PE 里用这个**） |
+| `bin\DP-PXE.exe` | GUI（`-H windowsgui`） | 控制端图形界面，双击即用（约 12.6 MB） |
+| `bin\DP-PXEClient.exe` | GUI + 控制台 | 被控端 / 模拟器 / 无界面服务端（**PE 里用这个**，约 14.6 MB） |
+
+> **手工编译注意**（v2.0 起两个产物 tags 不同，别搞混）：
+> ```bat
+> :: 控制端：不带 clientgui → 不链接 walk/win，省约 1.9MB
+> go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXE.exe .
+> :: 被控端：带 clientgui → 含 PE 原生界面（walk）
+> go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXEClient.exe .
+> ```
+> 漏了 `desktop,production` 会弹「Wails applications will not build without the correct build tags」（模态框，进程不退出）。
 
 两者是同一份代码，参数不同角色不同：
 
@@ -167,7 +176,16 @@ go/
 
 ## 4. 界面
 
-八个页签、顶部三列、底部状态灯与日志，全部按 Python 版 1:1 复刻：
+**左侧 160px 导航栏**（首页 / 日志 / 软件设置，选中项蓝底白字）+ 右侧内容区 + 底部常驻状态灯。
+底部导航栏固定 `启动服务` / `停止服务` 按钮（v2.0 起；1.x 是「顶部三列 + 底部 82px 日志条」）。
+
+| 页面 | 内容 |
+| --- | --- |
+| **首页** | 「选择服务端IP」+「已连接客户端」两张卡片（客户端表有足够宽度，`根`/`引导` 列不再被裁），下方是 8 个功能页签 |
+| **日志** | 独立整页，日志占满内容区，进页面自动滚到最新一行 |
+| **软件设置** | 引导文件（传统 / EFI / IPXE菜单 / 相对根目录）+ 运行目录（配置目录、日志目录） |
+
+首页的 8 个功能页签：
 
 | 页签 | 功能 |
 | --- | --- |
@@ -180,12 +198,12 @@ go/
 | 自动化指令 | 脚本编辑器 + 模板 + 前缀校验 + zlib 压缩下发 |
 | 其它设置 | 重启客户端、注入客户端/VNC/PE驱动、下次启动、改名、关机/重启/WOL、清缓存、保存设置 |
 
-顶部：服务端 IP 下拉、5 个服务开关、「仅仅选择中客户端接收指令」、引导文件配置、
-客户端表（编号/IP/MAC/状态/网卡/根/引导）。
+客户端表：编号 / IP / MAC / 状态 / 网卡 / 根 / 引导。右键菜单：**连接 VNC（内置查看器）**、
+用外部 Viewer 连接、查看信息、修改编号和 IP、从列表删除、远程重启/关机/开机、
+重启客户端进程、重启/关机/开机所有客户端、保存客户端列表。
 
-客户端表右键菜单：**连接 VNC（内置查看器）**、用外部 Viewer 连接、查看信息、
-修改编号和 IP、从列表删除、远程重启/关机/开机、重启客户端进程、
-重启/关机/开机所有客户端、保存客户端列表。
+> 布局用 CSS Grid 自适应：窗口拉到最小（960×660）或系统 DPI 125% 时，面板内容改为滚动查看，
+> 按钮不再被裁掉（`.row` 自动换行、`.panels` 有细滚动条）。
 
 ### 4.1 被控端界面（`--client --gui`）
 

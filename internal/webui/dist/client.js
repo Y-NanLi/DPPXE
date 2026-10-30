@@ -14,10 +14,10 @@ function esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/* 版本补足三段：1.5 → 1.5.0（标题栏和原版一样显示三段） */
+/* 版本补足三段：2.0 → 2.0.0（标题栏和原版一样显示三段） */
 function ver3(v) {
   const s = String(v == null ? '' : v).trim();
-  if (!s) return '1.5.0';
+  if (!s) return '2.0.0';
   const p = s.split('.');
   while (p.length < 3) p.push('0');
   return p.slice(0, 3).join('.');
@@ -32,7 +32,7 @@ function renderInfo(info) {
   $('lblNo').classList.toggle('on', connected && no !== '未知');
 
   $('lblCliIP').textContent = info.client_ip || '0.0.0.0';
-  $('lblCliVer').textContent = info.client_ver || '1.5';
+  $('lblCliVer').textContent = info.client_ver || '2.0';
   $('lblSrvIP').textContent = info.server_ip || '0.0.0.0';
   $('lblSrvVer').textContent = info.server_ver || '未知';
 

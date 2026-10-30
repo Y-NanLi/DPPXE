@@ -10,43 +10,48 @@
 
   <!-- ================= 标题栏 ================= -->
   <header class="titlebar">
-    <div class="logo">1.5</div>
+    <div class="logo">2.0</div>
     <div class="titles">
       <h1>DP-PXE</h1>
-      <div class="sub">Version <span id="appVer">1.5</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
+      <div class="sub">Version <span id="appVer">2.0</span>&nbsp;&nbsp;64 Bit - zh-CN</div>
     </div>
     <div class="spacer"></div>
     <button id="menuBtn" class="titlebtn" title="菜单">☰</button>
   </header>
 
-  <div class="body">
+  <div class="workspace">
 
-    <!-- ================= 顶部三列 ================= -->
+    <!-- ================= 左侧导航 ================= -->
+    <aside class="sidebar">
+      <div class="nav-item active" data-page="home"><span class="nav-ico">⌂</span>首页</div>
+      <div class="nav-item" data-page="log"><span class="nav-ico">▤</span>日志</div>
+      <div class="nav-item" data-page="settings"><span class="nav-ico">⚙</span>软件设置</div>
+      <div class="nav-spacer"></div>
+      <button id="btnStart" class="nav-start">启动服务</button>
+      <button id="btnStop" class="nav-start" style="display:none">停止服务</button>
+    </aside>
+
+    <main class="main">
+
+    <!-- ================= 首页 ================= -->
+    <div class="page active" id="page-home">
+
+    <!-- ================= 顶部两列 ================= -->
     <div class="top">
-      <section class="card" style="width:238px">
+      <section class="card" style="width:306px">
         <div class="card-title">选择服务端IP</div>
         <input type="text" id="serverIP" list="ipList" placeholder="10.0.0.133">
         <datalist id="ipList"></datalist>
-        <div class="row"><span class="grow">DHCP 服务</span><div class="switch" id="tgDhcp"></div></div>
-        <div class="row"><span class="grow">TFTP 服务</span><div class="switch" id="tgTftp"></div></div>
-        <div class="row"><span class="grow">HTTP 服务</span><div class="switch" id="tgHttp"></div></div>
-        <div class="row"><span class="grow">代理DHCP</span><div class="switch" id="tgProxy"></div></div>
-        <div class="row"><span class="grow">文件服务</span><div class="switch" id="tgFile"></div></div>
-        <div style="height:4px"></div>
-        <div class="row"><span class="grow danger">仅仅选择中客户端接收指令</span><div class="switch" id="tgOnly"></div></div>
-      </section>
-
-      <section class="card" style="width:300px">
-        <div class="card-title">引导文件</div>
-        <div class="row"><span class="hint" style="width:104px">传统网启引导文件</span><input type="text" id="edBootBios" class="grow" style="width:130px"></div>
-        <div class="row"><span class="hint" style="width:104px">EFI网启引导文件</span><input type="text" id="edBootEfi" class="grow" style="width:130px"></div>
-        <div class="row"><span class="hint" style="width:104px">IPXE菜单文件</span><input type="text" id="edMenu" class="grow" style="width:130px"></div>
-        <div class="row">
-          <span class="hint" style="width:104px">相对根目录</span>
-          <input type="text" id="edRoot" class="grow" style="width:130px" title="netboot 目录（放 menu.txt / ipxe.efi / boot\ 的根）">
-          <button class="ghost mini" id="btnPickRoot" title="选择 netboot 目录">…</button>
+        <!-- 开关排成两列：原来 6 行竖排会把页签区挤到只剩几十像素，
+             窗口一小面板里的按钮就跑到可视区外了 -->
+        <div class="switches">
+          <div class="row"><span class="grow">DHCP 服务</span><div class="switch" id="tgDhcp"></div></div>
+          <div class="row"><span class="grow">TFTP 服务</span><div class="switch" id="tgTftp"></div></div>
+          <div class="row"><span class="grow">HTTP 服务</span><div class="switch" id="tgHttp"></div></div>
+          <div class="row"><span class="grow">代理DHCP</span><div class="switch" id="tgProxy"></div></div>
+          <div class="row"><span class="grow">文件服务</span><div class="switch" id="tgFile"></div></div>
         </div>
-        <div class="hint" id="bootHint" style="white-space:pre-line"></div>
+        <div class="row"><span class="grow danger">仅仅选择中客户端接收指令</span><div class="switch" id="tgOnly"></div></div>
       </section>
 
       <section class="card grow">
@@ -345,11 +350,36 @@
 
       </div>
     </div>
+    </div><!-- /page-home -->
 
-    <!-- ================= 日志 ================= -->
-    <div class="logpanel" id="logPanel"></div>
+    <!-- ================= 日志页 ================= -->
+    <div class="page" id="page-log">
+      <div class="logpanel" id="logPanel"></div>
+    </div>
 
-    <!-- ================= 底栏 ================= -->
+    <!-- ================= 软件设置 ================= -->
+    <div class="page" id="page-settings">
+      <section class="card" style="width:680px">
+        <div class="card-title">引导文件</div>
+        <div class="row"><span class="hint" style="width:120px">传统网启引导文件</span><input type="text" id="edBootBios" class="grow"></div>
+        <div class="row"><span class="hint" style="width:120px">EFI网启引导文件</span><input type="text" id="edBootEfi" class="grow"></div>
+        <div class="row"><span class="hint" style="width:120px">IPXE菜单文件</span><input type="text" id="edMenu" class="grow"></div>
+        <div class="row">
+          <span class="hint" style="width:120px">相对根目录</span>
+          <input type="text" id="edRoot" class="grow" title="netboot 目录（放 menu.txt / ipxe.efi / boot\ 的根）">
+          <button class="ghost mini" id="btnPickRoot" title="选择 netboot 目录">…</button>
+        </div>
+        <div class="hint" id="bootHint" style="white-space:pre-line"></div>
+      </section>
+
+      <section class="card" style="width:680px">
+        <div class="card-title">运行目录</div>
+        <div class="row"><span class="hint" style="width:120px">配置目录</span><span class="hint grow" id="lblCfgDir" style="word-break:break-all">—</span></div>
+        <div class="row"><span class="hint" style="width:120px">日志目录</span><span class="hint grow" id="lblLogDir" style="word-break:break-all">—</span></div>
+      </section>
+    </div>
+
+    <!-- ================= 底栏（状态灯，切换页面时始终可见） ================= -->
     <div class="footer">
       <div class="dot" id="dotDhcp"></div><span class="hint">DHCP</span>
       <div class="dot" id="dotTftp"></div><span class="hint">TFTP</span>
@@ -358,10 +388,9 @@
       <span id="lblStatus" class="hint" style="margin-left:10px">服务未启动</span>
       <span id="lblAdmin" class="danger" style="display:none" title="以管理员身份运行才能绑定 67/69/80 并添加防火墙规则">未以管理员运行</span>
       <span class="grow"></span>
-      <button class="ghost" id="btnLogToggle" style="width:82px">隐藏日志</button>
-      <button id="btnStart" style="width:110px">启动服务</button>
-      <button id="btnStop" style="width:110px;display:none">停止服务</button>
     </div>
+
+    </main>
   </div>
 </div>
 

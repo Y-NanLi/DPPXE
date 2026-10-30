@@ -27,24 +27,27 @@
 
 ```
 分支：main
-HEAD：661e04a
-提交：release: v1.5 — 软件图标 + 蓝白主题皮肤 + 修复 walk typed-nil 崩溃
-标签：v1.5（已发布正式 Release）
+HEAD：v2.0 发布提交（tag `v2.0`）
+提交：release: v2.0 — 左侧导航栏改版 + 布局自适应 + 产物体积优化
+标签：v2.0（已发布正式 Release）
 远程：https://github.com/Y-NanLi/DPPXE.git
 ```
 
-**工作区干净，已与远程同步（0/0）**。v1.4 之后又发了一版 v1.5：
+**工作区干净，已与远程同步（0/0）**。近期版本节奏：v1.4 → v1.5 → **v2.0**：
 
 ```
-git log --oneline -3
+git log --oneline -4
+<hash> release: v2.0 — 左侧导航栏改版 + 布局自适应 + 产物体积优化
 661e04a release: v1.5 — 软件图标 + 蓝白主题皮肤 + 修复 walk typed-nil 崩溃
 1c2bedd release: v1.4 — 被控端图形界面（已装系统 + PE 原生）+ 命令回显 + 网络启动降噪
 48f93f1 docs: 开源化 README 改版（GPL-3.0 许可证 / 下载 / 贡献）+ 修正与 v1.3 不符的描述
 ```
 
-已入库的新增文件：`internal/client/uigui_windows.go`、`pe/DP-PXEClient.exe.manifest`、
+已入库的新增文件：`internal/client/uigui_windows.go`（仅 `clientgui` 构建）、
+**`internal/client/uigui_stub_windows.go`（控制端的占位，v2.0 新增）**、`pe/DP-PXEClient.exe.manifest`、
 **`rsrc.syso`（必须入库，含 comctl32 清单 + 图标）**、`netboot/EFI/Microsoft/Boot/Fonts/`（4 个 ttf）、
-`cmd/icongen/`、`assets/`（`icon-src.webp` + `app.ico`）、`internal/client/appicon.png`。
+`cmd/icongen/`、`assets/`（`icon-src.webp` + `app.ico`）、`internal/client/appicon.png`、
+**`AGENTS.md`（长期规则，v2.0 入库）**。
 
 > 注意：`pe/Pecmd.ini` **无改动**（曾被写坏，已 `git checkout` 恢复原状）。它是 GBK 编码，禁止用文本编辑器修改。
 
@@ -118,17 +121,30 @@ walk 内部 `if src == nil` 判不住 → `handleForDPIWithError(0x0)` 直接 pa
 
 ### 3.8 PE 镜像当前状态
 
-`go\netboot\boot\win11x64.WIM` 已注入 v1.5 客户端，校验 MD5 与 `bin\DP-PXEClient.exe` 一致
-（`11067AF8AB6FD8F1F3773B9915819F8D`），wimlib verify 通过。
+`go\netboot\boot\win11x64.WIM` 已注入 v2.0 客户端，校验 MD5 与 `bin\DP-PXEClient.exe` 一致
+（`07C561ACF3A15D4BF1FB168CB29D99DC`），wimlib verify 通过。
 
 注入备份链（都在 `netboot\boot\`，已被 `.gitignore` 排除，磁盘紧张时可只留最近 1~2 个）：
 
 ```
 win11x64.WIM.pre-pegui / pre-recvfix / pre-nativegui / pre-hidecmd /
-pre-hidecmd2 / pre-showfix / pre-launchfix / pre-v1.4 / pre-icon / pre-v1.5 ...
+pre-hidecmd2 / pre-showfix / pre-launchfix / pre-v1.4 / pre-icon / pre-v1.5 / pre-v2.0 ...
 ```
 
-> 注：`netboot\boot\` 下累计已有很多 `.pre-*` 备份，每个约 600~700MB（已 20+ 个）。
+> 注：`netboot\boot\` 下累计已有 20+ 个 `.pre-*` 备份，每个约 600~700MB（合计 12GB+）。
+
+### 3.9 控制端界面重构与体积优化（v2.0）
+
+| 项 | 说明 |
+|---|---|
+| 左侧导航栏 | 160px，三页：首页 / 日志 / 软件设置（`.nav-item` 选中蓝底白字，**不加 transition**——渐变背景无法插值，会出现"白字无底色"中间帧） |
+| 首页 | 只留「选择服务端IP」+「已连接客户端」两张卡片，8 个功能页签在下方；顶部开关改两列 grid（248px→180px） |
+| 日志页 | 独立整页占满内容区，进页面自动滚到底 |
+| 软件设置页 | 引导文件 + 运行目录（配置目录 / 日志目录） |
+| 布局 | `.body` 用 CSS Grid（`auto minmax(0,1fr)`）；`.panels` 必须 **block**（flex 容器的 `scrollHeight` 不含溢出子项 → 不出滚动条）；`.panel` 不能 `height:100%` |
+| 体积 | `uigui_windows.go` 加 `//go:build windows && clientgui`，新增 `uigui_stub_windows.go`（`!clientgui`）；控制端不带 `clientgui` → 不链接 walk/win，**14.55MB → 12.65MB** |
+
+**已验证无效的优化**（别重复试）：`-ldflags "-s -w -buildid="` 体积无变化；`internal` 下没有可删的死代码。
 
 ---
 
@@ -172,10 +188,11 @@ pre-hidecmd2 / pre-showfix / pre-launchfix / pre-v1.4 / pre-icon / pre-v1.5 ...
 - [ ] 启动菜单中文不显示方块（字体已补）
 
 ### 5.6 构建
-- [x] 一次跑通，产出 `bin\DP-PXE.exe` + `bin\DP-PXEClient.exe`（均约 15MB），带 `-tags desktop,production -trimpath -ldflags "-s -w -H windowsgui"`
+- [x] 一次跑通，产出 `bin\DP-PXE.exe`（**12.65MB**，不带 `clientgui`）+ `bin\DP-PXEClient.exe`（**14.56MB**，带 `clientgui`）
 - [x] `DP-PXEClient.exe --selftest` → `33 通过 / 0 失败`，退出码 0
-- [x] `go test ./...` 全绿、`go vet ./...` 干净
+- [x] `go test ./...` 全绿、`go vet ./...` 干净、`node --check` 两个 js 通过
 - [x] exe 文件图标 / 任务栏图标 / 窗口图标均生效（`rsrc.syso` 含图标，147KB）
+- [x] 控制端窗口标题 `DP-PXE 2.0`、被控端 `DP-PXEClient 2.0`（`MainWindowTitle` 实测）
 
 ---
 
@@ -206,10 +223,10 @@ pre-hidecmd2 / pre-showfix / pre-launchfix / pre-v1.4 / pre-icon / pre-v1.5 ...
    - 若怀疑脚本，把 `start_client.cmd` 临时改成写 trace 文件（`echo step1 > X:\DPPXE\launch.log`），逐段确认卡在哪
    - 终极兜底：`Pecmd.ini` 直接 `EXEC` 启动 exe（跳过 cmd），代价是失去等待网络与进程守护
 
-### 第 2 步：提交与发版 — ✅ 已完成（v1.4 → v1.5 两版）
-1. ✅ 提交并发布 **v1.4**（`1c2bedd`，27 文件）、**v1.5**（`661e04a`，18 文件：图标/皮肤/typed-nil 修复）。
-2. ✅ 版本号两轮同步（1.3→1.4→1.5，含 `AppVersion`/`ClientVersion`/`VersionWord`/界面标题/README/更新记录）。
-3. ✅ 两次 push main + tag，CI 均 success，Release 各含 4 产物；滚动 `latest` 跟随最新提交。
+### 第 2 步：提交与发版 — ✅ 已完成（v1.4 / v1.5 / v2.0 三版）
+1. ✅ 提交并发布 **v1.4**（27 文件）、**v1.5**（18 文件：图标/皮肤/typed-nil）、**v2.0**（导航栏/布局/体积 + `AGENTS.md`）。
+2. ✅ 版本号每轮按 `AGENTS.md` §6.5 同步 5 处（1.3→1.4→1.5→2.0）。
+3. ✅ 每轮 push main + tag，CI 均 success，Release 各含 4 产物；滚动 `latest` 跟随最新提交。
 
 ### 第 3 步：收尾优化（优先级低，均未做）
 1. 单实例保护改为**文件锁**（`CreateFile` 独占 `X:\DPPXE\client.lock`），替代不可靠的 tasklist
@@ -221,12 +238,17 @@ pre-hidecmd2 / pre-showfix / pre-launchfix / pre-v1.4 / pre-icon / pre-v1.5 ...
 
 ## 8. 关键约定速查（避免踩重复的坑）
 
-- **编译**：`go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui"`，两个产物都要。
+> 更完整、更新更及时的规则见 **`AGENTS.md`**（本文件是交接记录，`AGENTS.md` 是长期规则）。
+
+- **编译（v2.0 起两个产物 tags 不同）**：
+  - 控制端 `-tags desktop,production`（**不加 `clientgui`**）→ 不链接 walk/win，省 1.9MB；
+  - 被控端 `-tags "desktop,production,clientgui"` → 含 PE 原生界面；
+  - 两者都加 `-trimpath -ldflags "-s -w -H windowsgui"`。
 - **PE 里绝不能走 Wails**：`wantGUI` 必须 `&& !client.IsPE()`。
-- **walk 需要内嵌 manifest**：`rsrc -manifest pe/DP-PXEClient.exe.manifest -o rsrc.syso -arch amd64`。
+- **walk 需要内嵌 manifest + 图标**：`rsrc -manifest pe/DP-PXEClient.exe.manifest -ico assets/app.ico -o rsrc.syso -arch amd64`。
 - **`Pecmd.ini` 是 GBK**：只能用 `git checkout` 恢复 + Python 二进制替换。
 - **`.cmd` 注释必须纯 ASCII**：cmd 按 ANSI 936 读文件。
-- **PE 脚本禁用 tasklist/find 管道**。
+- **PE 脚本禁用 tasklist/find 管道**；`Pecmd.ini` 用普通 `EXEC`（不加 `!`）。
 - **`bcdboot` 不带 `/f` 也不带 `/s`**（`/f` 必须配 `/s`，单独用返回 87）。
 - **`wimlib` 不支持 http**，流式安装必须先下载。
 - **握手版本必须真实**（`config.VersionParts()`）。
