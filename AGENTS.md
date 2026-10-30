@@ -184,10 +184,13 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
    - **发版前必查 `.github/workflows/build.yml` 里两条 `go build` 的 tags 与 `build.bat` 一致**
      （控制端不带 `clientgui`、被控端带 `clientgui`）。v2.0 曾因为 CI 里被控端漏了所有 tags，
      发出去的 `DP-PXEClient.exe` 既弹 build tags 模态框、也没有 PE 原生界面（v1.0–v1.5 同样受影响）。
-   - **Gitee 镜像另有 `.workflow/release-pipeline.yml`**（Gitee Go 流水线），只在推送 `v*` 标签时触发。
-     注意它的语法与 GitHub Actions 完全不同：阶段是 `- name:` 直接列（不是 `- stage:`）、
-     发版插件是 `release@gitee`（不是 `publish@gitee-release`）、没有 `${GITEE_TAG}` 变量
-     （Tag 名在构建阶段算好后写进 `GITEE_PARAMS` 传给发版步骤）。
+   - **Gitee 发版走 GitHub Actions，不走 Gitee Go**：`.github/workflows/build.yml` 里的
+     `gitee-release` 作业在打 tag 后调 Gitee OpenAPI 建发行版并上传两个 exe
+     （需在仓库 Secrets 配 `GITEE_TOKEN`，可选 Variables `GITEE_OWNER` / `GITEE_REPO`）。
+     原因：Gitee 侧是只读镜像，镜像同步不产生 push 事件，Gitee Go 的 tag 触发不会自己跑，
+     且 Gitee Go 没有对外触发 API。`.workflow/release-pipeline.yml` 只是**手动备用**（triggers 已注释）。
+     它的语法与 GitHub Actions 完全不同：阶段是 `- name:` 直接列（不是 `- stage:`）、
+     发版插件是 `release@gitee`、没有 `${GITEE_TAG}` 变量（Tag 名要在构建阶段写进 `GITEE_PARAMS`）。
 
 ---
 

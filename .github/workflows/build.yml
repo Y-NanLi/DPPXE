@@ -122,3 +122,116 @@ jobs:
           Commit: ${GITHUB_SHA}
           构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             dist/*.exe netboot.zip AutoCommand.zip
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 把同一个 Release 同步到 Gitee。
+  #
+  # 为什么不用 Gitee Go 流水线：Gitee 侧是「GitHub → Gitee」的只读镜像，
+  # 镜像同步不会产生 push 事件，Gitee Go 的 tag 触发不会自己跑；而且 Gitee Go
+  # 没有对外触发 API。所以改成「GitHub 构建完，直接调 Gitee OpenAPI 建发行版」。
+  #
+  # 需要的配置（GitHub 仓库 → Settings → Secrets and variables → Actions）：
+  #   Secret  GITEE_TOKEN   必填，Gitee 私人令牌（权限勾 projects）
+  #   Variable GITEE_OWNER  选填，默认 Y-NanLi
+  #   Variable GITEE_REPO   选填，默认 DPPXE
+  # 没配 GITEE_TOKEN 时本作业只打警告并跳过，不影响 GitHub 侧的发布。
+  # ───────────────────────────────────────────────────────────────────────────
+  gitee-release:
+    name: Gitee Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      GITEE_OWNER: ${{ vars.GITEE_OWNER || 'Y-NanLi' }}
+      GITEE_REPO: ${{ vars.GITEE_REPO || 'DPPXE' }}
+      GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: DP-PXE-windows-amd64
+          path: dist
+
+      - name: 打包 netboot 与 AutoCommand
+        shell: bash
+        run: |
+          git archive --format=zip -o netboot.zip HEAD netboot ':(exclude)**/*.wim'
+          git archive --format=zip -o AutoCommand.zip HEAD AutoCommand
+          ls -lh dist/*.exe netboot.zip AutoCommand.zip
+
+      - name: 推送到 Gitee 发行版
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GITEE_TOKEN:-}" ]; then
+            echo "::warning::未配置 GITEE_TOKEN，跳过 Gitee 发版（GitHub 侧已正常发布）"
+            exit 0
+          fi
+
+          API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
+          ASSETS="DP-PXE.exe DP-PXEClient.exe netboot.zip AutoCommand.zip"
+
+          NOTES="$(printf 'DP-PXE %s 自动构建发布\n\n- 提交：%s\n- GitHub Release：https://github.com/%s/releases/tag/%s\n- 详细变更见仓库 更新记录.md\n- PE 镜像 win11x64.WIM 体积超限，不在产物内，需自备' \
+            "$TAG" "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" "$TAG")"
+
+          echo "== 查找 tag ${TAG} 是否已有 Release =="
+          resp=$(curl -sS -w '\n%{http_code}' -G "${API}/releases/tags/${TAG}" \
+                  --data-urlencode "access_token=${GITEE_TOKEN}")
+          code=$(printf '%s' "$resp" | tail -n1)
+          body=$(printf '%s' "$resp" | sed '$d')
+
+          if [ "$code" = "200" ]; then
+            RID=$(printf '%s' "$body" | jq -r '.id')
+            echo "已存在 Release id=${RID}，更新标题与说明"
+            curl -sS -X PATCH "${API}/releases/${RID}" \
+              -H 'Content-Type: application/json;charset=UTF-8' \
+              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
+                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null
+
+            echo "== 删除同名旧附件（避免重名上传失败）=="
+            curl -sS -G "${API}/releases/${RID}/attach_files" \
+                 --data-urlencode "access_token=${GITEE_TOKEN}" \
+              | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do
+                  for want in $ASSETS; do
+                    if [ "$aname" = "$want" ]; then
+                      echo "  删除 $aname (id=$aid)"
+                      curl -sS -X DELETE "${API}/releases/${RID}/attach_files/${aid}" \
+                           --data-urlencode "access_token=${GITEE_TOKEN}" > /dev/null || true
+                    fi
+                  done
+                done
+          else
+            echo "未找到（HTTP ${code}），创建 Release"
+            created=$(curl -sS -X POST "${API}/releases" \
+              -H 'Content-Type: application/json;charset=UTF-8' \
+              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
+                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')")
+            RID=$(printf '%s' "$created" | jq -r '.id // empty')
+            if [ -z "$RID" ]; then
+              echo "::error::创建 Gitee Release 失败：$(printf '%s' "$created" | head -c 500)"
+              exit 1
+            fi
+            echo "新建 Release id=${RID}"
+          fi
+
+          echo "== 上传附件 =="
+          for f in dist/DP-PXE.exe dist/DP-PXEClient.exe netboot.zip AutoCommand.zip; do
+            name=$(basename "$f")
+            echo "  上传 ${name}"
+            out=$(curl -sS -X POST "${API}/releases/${RID}/attach_files" \
+                    -F "access_token=${GITEE_TOKEN}" \
+                    -F "file=@${f}")
+            if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then
+              echo "    OK $(printf '%s' "$out" | jq -r '.name')"
+            else
+              echo "::error::上传 ${name} 失败：$(printf '%s' "$out" | head -c 300)"
+              exit 1
+            fi
+          done
+
+          echo "完成：https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}/releases/tag/${TAG}"

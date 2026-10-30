@@ -3,9 +3,25 @@ name: release-pipeline
 displayName: DP-PXE 发版（构建 Windows 产物 + Gitee Release）
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 触发：只在推送 v* 标签时跑（例如 v2.0）。
+# ⚠️ 这条 Gitee Go 流水线现在只是**手动备用**，默认不会自动跑。
 #
-# 旧版为什么「构建不出来也不发行」，逐条对应下面这些错误：
+# 原因：Gitee 侧仓库是「GitHub → Gitee」的只读镜像，镜像同步不会产生 push 事件，
+#       Gitee Go 的 tag 触发不会自己触发；而且 Gitee Go 没有对外触发 API。
+#       现在的主路径是 GitHub Actions 里的 `gitee-release` 作业：
+#       构建完直接调 Gitee OpenAPI 建发行版并上传附件（见 .github/workflows/build.yml）。
+#       为避免两边同时发同一个 Release，这里把 triggers 注释掉了。
+#       需要在 Gitee 上单独跑一次时：Gitee 仓库 → 流水线 → 选中这条 → 点「执行」。
+#
+# 保留它是因为：万一以后把 Gitee 改成可写主仓库，把下面 triggers 的注释恢复即可。
+#
+# triggers:
+#   push:
+#     tags:
+#       prefix:
+#         - v
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# 附：旧版为什么「构建不出来也不发行」（历史记录，已全部修正）
 #   1. stages 结构写错：真实语法是 `- name: xxx` 直接作为阶段项，
 #      旧版多套了一层 `- stage:`，Gitee 解析不到阶段 → 流水线起不来。
 #   2. 步骤名不存在：`publish@gitee-release` 不是真实插件，正确的是 `release@gitee`。
@@ -15,17 +31,8 @@ displayName: DP-PXE 发版（构建 Windows 产物 + Gitee Release）
 #   5. 构建命令用了 CGO_ENABLED=1 + x86_64-w64-mingw32-gcc，但 golang 镜像里没有 mingw
 #      → 编译直接失败。实测本项目 CGO_ENABLED=0 即可交叉编译出 Windows 产物，
 #      体积与本地一致（控制端 12.65MB / 被控端 14.56MB），所以不再需要 mingw。
-#   6. 被控端编译漏了 build tags（旧版连 desktop,production 都没有）→ 即使编出来也是坏的：
-#      Wails runtime 空壳（一开 GUI 弹 build tags 模态框）、且不含 PE 原生界面（walk）。
-#
-# 想同时让 main 分支也构建（不发版）：建议另建一个 .workflow/build-only.yml，
-# 只保留下面的 stage-build 阶段、不要 stage-release。
+#   6. 被控端编译漏了 build tags（旧版连 desktop,production 都没有）→ 即使编出来也是坏的。
 # ─────────────────────────────────────────────────────────────────────────────
-triggers:
-  push:
-    tags:
-      prefix:
-        - v
 
 variables:
   # 产物名 / Release 标题前缀
