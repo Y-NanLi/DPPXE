@@ -154,6 +154,7 @@ go/
 ├─ assets/                     icon-src.webp（源图）+ app.ico（多尺寸图标，由 icongen 生成）
 ├─ cmd/icongen/                图标转换小工具（webp/png → 多尺寸 ico）
 ├─ rsrc.syso                   内嵌资源（comctl32 清单 + 图标），必须入库
+├─ HANDOFF.md                  开发交接说明（架构约定 / 踩过的坑 / 待办）
 └─ bin/                        编译产物
 ```
 
