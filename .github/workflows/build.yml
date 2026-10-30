@@ -177,19 +177,19 @@ jobs:
           API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
           ASSETS="DP-PXE.exe DP-PXEClient.exe netboot.zip AutoCommand.zip"
 
-          # gitee.com 从 GitHub runner（Azure）跨境访问约 4~9 秒，偶发 Connection reset，
-          # 所以统一加重试；HTTP/1.1 + IPv4 更稳（实测比默认 HTTP/2 少出错）。
-          CURL="curl -sS --http1.1 -4 --connect-timeout 15 --max-time 120 --retry 5 --retry-delay 5 --retry-connrefused"
+          # gitee.com 从 GitHub runner（Azure）跨境访问：建连经常 10~30 秒，偶发 reset / timeout。
+          # 实测 gitee.com 本身可达（首页 200），所以靠「长超时 + 多重试」扛过去。
+          CURL="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 180 --retry 8 --retry-delay 8 --retry-connrefused --retry-max-time 600"
 
           echo "== 预检：确认仓库与令牌可用 =="
           rc=$($CURL -o /dev/null -w '%{http_code}' -G "${API}" \
                 --data-urlencode "access_token=${GITEE_TOKEN}" || echo "000")
           if [ "$rc" = "000" ]; then
-            echo "::error::连不上 gitee.com（重试后仍失败）。已实测 GitHub runner 可访问 gitee.com，属偶发跨境抖动，稍后重跑本作业即可"
+            echo "::error::连不上 gitee.com（重试后仍失败）。gitee.com 本身可达，属跨境抖动，重跑本作业即可"
             exit 1
           fi
           if [ "$rc" != "200" ]; then
-            echo "::error::访问 ${GITEE_OWNER}/${GITEE_REPO} 返回 HTTP ${rc}。请检查：1) GITEE_OWNER/GITEE_REPO 是否正确（Gitee 命名空间 nan-liGit 与 GitHub 的 Y-NanLi 不同）；2) 令牌是否勾了 projects 权限"
+            echo "::error::访问 ${GITEE_OWNER}/${GITEE_REPO} 返回 HTTP ${rc}。请检查 GITEE_OWNER/GITEE_REPO（Gitee 是 nan-liGit，不是 GitHub 的 Y-NanLi）与令牌 projects 权限"
             exit 1
           fi
           echo "   OK ${GITEE_OWNER}/${GITEE_REPO}"
@@ -199,22 +199,32 @@ jobs:
 
           echo "== 查找 tag ${TAG} 是否已有 Release =="
           resp=$($CURL -w '\n%{http_code}' -G "${API}/releases/tags/${TAG}" \
-                  --data-urlencode "access_token=${GITEE_TOKEN}")
+                  --data-urlencode "access_token=${GITEE_TOKEN}" || true)
           code=$(printf '%s' "$resp" | tail -n1)
           body=$(printf '%s' "$resp" | sed '$d')
+          echo "   HTTP ${code:-<空>}"
 
-          if [ "$code" = "200" ]; then
-            RID=$(printf '%s' "$body" | jq -r '.id')
-            echo "已存在 Release id=${RID}，更新标题与说明"
-            $CURL -X PATCH "${API}/releases/${RID}" \
-              -H 'Content-Type: application/json;charset=UTF-8' \
-              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
-                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null
+          # 只接受 200（已存在）和 404（不存在），其它一律报错退出——
+          # 不能像之前那样带着 id=null 继续往下走。
+          case "$code" in
+            200)
+              RID=$(printf '%s' "$body" | jq -r '.id // empty' 2>/dev/null)
+              case "$RID" in
+                ''|*[!0-9]*)
+                  echo "::error::解析 Release id 失败，响应片段：$(printf '%s' "$body" | head -c 300)"
+                  exit 1 ;;
+              esac
+              echo "已存在 Release id=${RID}，更新标题与说明"
+              $CURL -X PATCH "${API}/releases/${RID}" \
+                -H 'Content-Type: application/json;charset=UTF-8' \
+                -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
+                      '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null || true
 
-            echo "== 删除同名旧附件（避免重名上传失败）=="
-            $CURL -G "${API}/releases/${RID}/attach_files" \
-                 --data-urlencode "access_token=${GITEE_TOKEN}" \
-              | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do
+              echo "== 删除同名旧附件（避免重名上传失败）=="
+              listing=$($CURL -G "${API}/releases/${RID}/attach_files" \
+                         --data-urlencode "access_token=${GITEE_TOKEN}" || true)
+              if printf '%s' "$listing" | jq -e 'type=="array"' > /dev/null 2>&1; then
+                printf '%s' "$listing" | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do
                   for want in $ASSETS; do
                     if [ "$aname" = "$want" ]; then
                       echo "  删除 $aname (id=$aid)"
@@ -223,19 +233,29 @@ jobs:
                     fi
                   done
                 done
-          else
-            echo "未找到（HTTP ${code}），创建 Release"
-            created=$($CURL -X POST "${API}/releases" \
-              -H 'Content-Type: application/json;charset=UTF-8' \
-              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
-                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')")
-            RID=$(printf '%s' "$created" | jq -r '.id // empty')
-            if [ -z "$RID" ]; then
-              echo "::error::创建 Gitee Release 失败：$(printf '%s' "$created" | head -c 500)"
+              else
+                echo "   （列附件失败，跳过删除，直接尝试上传）"
+              fi
+              ;;
+            404)
+              echo "未找到，创建 Release"
+              created=$($CURL -X POST "${API}/releases" \
+                -H 'Content-Type: application/json;charset=UTF-8' \
+                -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
+                      '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" || true)
+              RID=$(printf '%s' "$created" | jq -r '.id // empty' 2>/dev/null)
+              case "$RID" in
+                ''|*[!0-9]*)
+                  echo "::error::创建 Gitee Release 失败，响应片段：$(printf '%s' "$created" | head -c 500)"
+                  exit 1 ;;
+              esac
+              echo "新建 Release id=${RID}"
+              ;;
+            *)
+              echo "::error::查询 Release 失败（HTTP ${code:-空}，多为跨境超时），重跑本作业即可"
               exit 1
-            fi
-            echo "新建 Release id=${RID}"
-          fi
+              ;;
+          esac
 
           echo "== 上传附件 =="
           for f in dist/DP-PXE.exe dist/DP-PXEClient.exe netboot.zip AutoCommand.zip; do
@@ -243,11 +263,11 @@ jobs:
             echo "  上传 ${name}"
             out=$($CURL -X POST "${API}/releases/${RID}/attach_files" \
                     -F "access_token=${GITEE_TOKEN}" \
-                    -F "file=@${f}")
+                    -F "file=@${f}" || true)
             if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then
               echo "    OK $(printf '%s' "$out" | jq -r '.name')"
             else
-              echo "::error::上传 ${name} 失败：$(printf '%s' "$out" | head -c 300)"
+              echo "::error::上传 ${name} 失败，响应片段：$(printf '%s' "$out" | head -c 300)"
               exit 1
             fi
           done
