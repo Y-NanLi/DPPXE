@@ -223,10 +223,12 @@ jobs:
 
           if [ -z "$RID" ]; then
             echo "该 tag 尚无 Release（响应 $(printf '%s' "$body" | head -c 40)），创建新的"
+            # Gitee 创建 Release 必须带 target_commitish（否则报 target_commitish is missing）
             created=$($CURL -X POST "${API}/releases" \
               -H 'Content-Type: application/json;charset=UTF-8' \
-              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
-                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" || true)
+              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" \
+                    --arg body "$NOTES" --arg tc "${GITHUB_SHA}" \
+                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,target_commitish:$tc,prerelease:false}')" || true)
             RID=$(printf '%s' "$created" | jq -r 'if type=="object" then (.id // empty) else empty end' 2>/dev/null || true)
             case "$RID" in
               ''|*[!0-9]*)
