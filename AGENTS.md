@@ -160,6 +160,15 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
 ### 5.11 界面颜色只走 CSS 变量
 `internal/webui/dist/style.css` 的 `:root` 是唯一色值来源，`index.html` / `app.js` **不允许出现硬编码颜色**。
 
+### 5.12 Gitee OpenAPI 的三个坑（发版作业踩过）
+1. **查不到 tag 时返回 `200` + 响应体 `null`**，不是 404 —— 必须按「能不能取到数字 id」判断，
+   否则会把「没有 Release」误判成解析失败。
+2. **创建 Release 必须带 `target_commitish`**，否则报 `{"messages":["target_commitish is missing"]}`。
+3. **gitee.com 从 GitHub runner（Azure）跨境访问很慢**：建连常 10~30 秒，偶发 `Connection reset` /
+   `timeout`。`--connect-timeout` 至少 30、`--max-time` 180、`--retry 8`，并用 `--http1.1 -4`。
+   实测 gitee.com 本身可达（首页 200），不要误判成「被墙」。
+4. 另：Gitee 命名空间是 `nan-liGit`，与 GitHub 的 `Y-NanLi` **不同**，`GITEE_OWNER` 默认值别写错。
+
 ---
 
 ## 6. 变更流程
