@@ -1,0 +1,48 @@
+version: '1.0'
+name: release-pipeline
+displayName: DP-PXE 自动发版流水线
+
+triggers:
+  push:
+    # 分支触发：匹配 main 分支
+    branches:
+      precise:
+        - main
+    # Tag 触发：匹配 v 开头的 Tag（如 v1.5, v1.6）
+    tags:
+      prefix:
+        - v
+
+stages:
+  - stage:
+      name: build-and-release
+      displayName: 构建并自动发布
+      steps:
+        # 1. 编译 Windows 二进制
+        - step: build@golang
+          name: build_go
+          displayName: 编译 Go 程序 (Windows amd64)
+          golangVersion: '1.27'
+          commands:
+            - mkdir -p bin
+            - go mod tidy
+            - CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
+            - CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -trimpath -ldflags "-s -w" -o bin/DP-PXEClient.exe .
+          artifacts:
+            - name: BUILD_ARTIFACT
+              path:
+                - bin
+
+        # 2. 自动创建 Gitee Release 并上传 exe 附件
+        - step: publish@gitee-release
+          name: publish_release
+          displayName: 发布 Gitee Release
+          dependsOn: build_go
+          tagName: ${GITEE_TAG}
+          releaseName: "DP-PXE ${GITEE_TAG}"
+          description: "自动构建发布，提交: ${GITEE_COMMIT}"
+          assertFiles:
+            - bin/DP-PXE.exe
+            - bin/DP-PXEClient.exe
+          prerelease: false
+          allowUpdate: true

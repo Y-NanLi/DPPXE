@@ -4,6 +4,13 @@
 [![Version](https://img.shields.io/badge/version-2.0-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
 
+## 🚀 在线演示
+
+👉 **[点击这里访问 WebUI 在线演示](https://y-nanli.github.io/DPPXE/)**
+
+> 演示站点只发布前端静态资源（`internal/webui/dist`），**没有后端**，
+> 因此只能看界面布局与交互；真正收发指令请在本地运行 `DP-PXE.exe`。
+
 **DP-PXE** 是一个 Windows 平台的 **PXE 网启 + 批量装机** 服务端 / 被控端工具：
 一套程序同时提供 DHCP、TFTP、HTTP、控制通道与图形界面，把客户机拉进 WinPE 后
 完成分区、还原镜像、注入驱动、修复引导等操作。
