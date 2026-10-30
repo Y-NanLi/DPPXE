@@ -1,7 +1,7 @@
-# DP-PXE —— Go 重构版（v2.0）
+# DP-PXE —— Go 重构版（v2.1）
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
+[![Version](https://img.shields.io/badge/version-2.1-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
 
 ## 🚀 在线演示
@@ -114,10 +114,10 @@ test.bat       :: 内置自检（33 项）
 
 ```bat
 bin\DP-PXE.exe                                     :: 图形界面
-bin\DP-PXEClient.exe --nogui --root D:\wb\h-go\go\netboot  :: 无界面跑全部服务（PE / 服务器）
+bin\DP-PXEClient.exe --nogui --root D:\wb\h-go\go\netboot  :: 无界面跑全部服务（服务器 / 调试）
 bin\DP-PXEClient.exe --web --web-port 8788         :: 不开窗口，浏览器里用界面（WebView2 缺失时兜底）
 bin\DP-PXE.exe       --client --gui --server 10.0.0.133  :: 被控端（图形界面）
-bin\DP-PXEClient.exe --client --server 10.0.0.133          :: 被控端（控制台，PE 用）
+bin\DP-PXEClient.exe --client --server 10.0.0.133          :: 被控端（控制台；PE 里请用图形界面，见 4.1.1）
 bin\DP-PXEClient.exe --sim    --server 10.0.0.133  :: 客户端模拟器（只记录不执行）
 bin\DP-PXEClient.exe --selftest                    :: 自检
 bin\DP-PXEClient.exe --client --install --server 10.0.0.133   :: 装成开机自启（SYSTEM）
@@ -221,7 +221,8 @@ go/
 ```
 bin\DP-PXE.exe --client --gui --server 10.0.0.133   :: 图形界面被控端
 :: 或菜单「☰ → 启动被控端（本机 · 图形界面）」
-:: 需要看滚动日志 / 在 PE 里跑：菜单「启动被控端（本机 · 控制台）」或 --client（不带 --gui）
+:: 只想看滚动日志：菜单「☰ → 启动被控端（本机 · 控制台）」或 --client（不带 --gui）
+:: PE 里不需要手动指定——start_client.cmd 会自动用 --gui 拉起原生窗口（见 4.1.1）
 ```
 
 - 窗口是无边框的：标题栏整条可拖动（`--wails-draggable: drag`），双击标题栏最大化/还原，
@@ -346,7 +347,7 @@ DHCP(67) 派 IP + option66/67/43/175
 :: ① 菜单「☰ → 启动被控端（本机 · 图形界面）」——打开被控端窗口
 :: ② 手动指定服务端（图形界面）
 bin\DP-PXE.exe --client --gui --server 10.0.0.133
-:: ③ 控制台模式（PE / 只看滚动日志）
+:: ③ 控制台模式（只看滚动日志 / 调试用；PE 里默认走图形界面）
 bin\DP-PXEClient.exe --client --server 10.0.0.133
 :: ④ 双击 DP-PXEClient.exe（不带参数 = 图形界面 + 自动广播发现服务端）
 ```

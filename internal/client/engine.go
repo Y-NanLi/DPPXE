@@ -1451,38 +1451,121 @@ func (e *Engine) cmdINJECTVNC(rest string) {
 	} else {
 		e.log("客户端目录里没有 tvnserver.exe，仅写注册表")
 	}
-	// 2) 写目标系统的 TightVNC 注册表（无密码）+ 开机启动 Run 键
+	// 2) 写目标系统的 TightVNC 注册表（无密码）+ 开机启动 + 防火墙放行
 	flag := "1"
 	if hidden {
 		flag = "0"
 	}
+	vals := tightVNCValues(flag)
+
 	root, loaded := e.loadTargetSoftware(target)
 	if root != "" {
 		key := root + `\TightVNC\Server`
-		vals := [][3]string{
-			{"UseVncAuthentication", "REG_DWORD", "0"},
-			{"UseControlAuthentication", "REG_DWORD", "0"},
-			{"UseMicrosoftLogon", "REG_DWORD", "0"},
-			{"RfbPort", "REG_DWORD", "5900"},
-			{"HttpPort", "REG_DWORD", "5800"},
-			{"AcceptRfbConnections", "REG_DWORD", "1"},
-			{"AcceptHttpConnections", "REG_DWORD", "1"},
-			{"EnableFileTransfers", "REG_DWORD", "1"},
-			{"AlwaysShared", "REG_DWORD", "1"},
-			{"LoopbackOnly", "REG_DWORD", "0"},
-			{"AllowLoopback", "REG_DWORD", "0"},
-			{"RunControlInterface", "REG_DWORD", flag},
-		}
 		for _, v := range vals {
 			e.Run(fmt.Sprintf(`reg add "%s" /v %s /t %s /d %s /f`, key, v[0], v[1], v[2]), true, 60)
 		}
-		// 注意：这里不再单独给 tvnserver 加 Run 键——改由被控端启动时先放行防火墙、
-		// 再拉起 tvnserver，避免防火墙在放行之前就弹"已阻止"。
-		// 顺手清掉旧版注入可能留下的 tvnserver Run 键（避免重复启动）。
-		e.Run(fmt.Sprintf(`reg delete "%s\Microsoft\Windows\CurrentVersion\Run" /v TightVNC /f`, root), true, 60)
+		// 开机自启：这一步**必须写**。原来为了"先放行防火墙再启动"把 Run 键删了，
+		// 结果只注入 VNC、不注入客户端时，系统里没有任何东西去启动 tvnserver，
+		// 控制端连 5900 一直无响应。tvnserver 是单实例，和客户端重复启动也无害。
+		// 用 %SystemRoot% 而不是绝对路径：系统盘符不一定是 C:。
+		e.Run(fmt.Sprintf(`reg add "%s\Microsoft\Windows\CurrentVersion\Run" /v TightVNC /t REG_EXPAND_SZ /d "%%SystemRoot%%\System32\tvnserver.exe" /f`,
+			root), true, 60)
 	}
 	e.unloadTargetSoftware(loaded)
-	e.log("注入 VNC 成功（已设置开机启动）")
+
+	// 3) 目标用户的 HKCU：tvnserver 以登录用户身份运行时读这里（服务模式才只读 HKLM）
+	e.injectTargetHKCU(target, vals)
+
+	// 4) 目标系统防火墙放行 5900，否则即使服务在监听，连接也会被静默丢弃
+	e.openTargetFirewall(target, 5900)
+
+	e.log("注入 VNC 成功（已设置开机自启 + 放行 5900）")
+}
+
+// tightVNCValues 是"无密码 + 允许远程"的 TightVNC 配置。
+// HKLM（服务模式）和 HKCU（应用模式）都要写。
+func tightVNCValues(runControl string) [][3]string {
+	return [][3]string{
+		{"UseVncAuthentication", "REG_DWORD", "0"},
+		{"UseControlAuthentication", "REG_DWORD", "0"},
+		{"UseMicrosoftLogon", "REG_DWORD", "0"},
+		{"RfbPort", "REG_DWORD", "5900"},
+		{"HttpPort", "REG_DWORD", "5800"},
+		{"AcceptRfbConnections", "REG_DWORD", "1"},
+		{"AcceptHttpConnections", "REG_DWORD", "1"},
+		{"EnableFileTransfers", "REG_DWORD", "1"},
+		{"AlwaysShared", "REG_DWORD", "1"},
+		{"LoopbackOnly", "REG_DWORD", "0"},
+		{"AllowLoopback", "REG_DWORD", "0"},
+		{"RunControlInterface", "REG_DWORD", runControl},
+	}
+}
+
+// injectTargetHKCU 把同样的配置写进目标系统 Administrator 的用户配置单元。
+// PE 里必须 reg load NTUSER.DAT，写 PE 自己的 HKCU 重启就没了。
+func (e *Engine) injectTargetHKCU(target string, vals [][3]string) {
+	usr := filepath.Join(strings.TrimRight(target, "\\")+"\\", "Users", "Administrator", "NTUSER.DAT")
+	if !fileExistsAny(usr) {
+		return // 没有该用户配置就跳过，HKLM 那份通常已经够用
+	}
+	if rc, _ := e.Run(fmt.Sprintf(`reg load HKLM\DPPXE_USR "%s"`, usr), true, 120); rc != 0 {
+		e.log("加载目标用户注册表失败，跳过 HKCU：" + usr)
+		return
+	}
+	defer e.Run(`reg unload HKLM\DPPXE_USR`, true, 120)
+	key := `HKLM\DPPXE_USR\Software\TightVNC\Server`
+	for _, v := range vals {
+		e.Run(fmt.Sprintf(`reg add "%s" /v %s /t %s /d %s /f`, key, v[0], v[1], v[2]), true, 60)
+	}
+}
+
+// openTargetFirewall 在目标系统的离线注册表里加一条入站放行规则。
+//
+// 用 RunOnce 跑 netsh 的做法依赖"有人登录"，注入到系统后往往无人值守，
+// 所以直接把规则写进 FirewallRules（v2.30 格式，Win7+ 通用），开机即生效。
+func (e *Engine) openTargetFirewall(target string, port int) {
+	sysRoot, loaded := e.loadTargetSystem(target)
+	if sysRoot == "" {
+		return
+	}
+	defer e.unloadTargetSystem(loaded)
+	// 离线 hive 里当前控制集是 ControlSet001；在线系统用 CurrentControlSet
+	ctrl := "ControlSet001"
+	if !e.pe {
+		ctrl = "CurrentControlSet"
+	}
+	key := sysRoot + `\` + ctrl + `\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules`
+	rule := fmt.Sprintf(
+		`v2.30|Action=Allow|Active=TRUE|Dir=In|Protocol=6|LPort=%d|Name=DPPXE-VNC|Desc=DP-PXE remote desktop|`,
+		port)
+	if rc, _ := e.Run(fmt.Sprintf(`reg add "%s" /v DPPXE-VNC /t REG_SZ /d "%s" /f`, key, rule), true, 60); rc == 0 {
+		e.log(fmt.Sprintf("已在目标系统防火墙放行 TCP %d（若仍连不上，请在目标系统确认防火墙/安全软件未拦截）", port))
+	} else {
+		e.log(fmt.Sprintf("写入目标防火墙规则失败，请在目标系统手动放行 TCP %d", port))
+	}
+}
+
+// loadTargetSystem 把目标系统的 SYSTEM hive 挂到 HKLM\DPPXE_SYS（防火墙规则在这里）。
+func (e *Engine) loadTargetSystem(target string) (string, bool) {
+	if !e.pe {
+		return `HKLM\SYSTEM`, false
+	}
+	hive := filepath.Join(strings.TrimRight(target, "\\")+"\\", "Windows", "System32", "config", "SYSTEM")
+	if !fileExistsAny(hive) {
+		e.log("目标系统 SYSTEM 注册表不存在：" + hive)
+		return "", false
+	}
+	if rc, _ := e.Run(fmt.Sprintf(`reg load HKLM\DPPXE_SYS "%s"`, hive), true, 120); rc != 0 {
+		e.log("加载目标 SYSTEM 注册表失败：" + hive)
+		return "", false
+	}
+	return `HKLM\DPPXE_SYS`, true
+}
+
+func (e *Engine) unloadTargetSystem(loaded bool) {
+	if loaded {
+		e.Run(`reg unload HKLM\DPPXE_SYS`, true, 120)
+	}
 }
 
 // loadTargetSoftware 把目标系统（离线盘 target）的 SOFTWARE hive 挂到 HKLM\DPPXE_OFF，
