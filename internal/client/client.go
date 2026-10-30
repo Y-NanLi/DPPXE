@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,7 +30,7 @@ import (
 const HeartbeatSec = 20
 
 // VersionWord 握手用的版本字（主版本<<16 | 次版本）。
-const VersionWord = (1 << 16) | 3 // 1.3（主版本<<16 | 次版本）
+const VersionWord = (1 << 16) | 4 // 1.4（主版本<<16 | 次版本）
 
 // Callbacks 界面回调（控制台版本可全为 nil）。
 type Callbacks struct {
@@ -211,6 +212,8 @@ func (c *Client) RunForever() {
 
 	// 同目录有 tvnserver 就拉起来（PE 和已装系统都适用），先放行防火墙再启动。
 	c.startVNC()
+	// 异步探测 wimlib 版本（界面右下角显示，PE 里才有）。
+	go c.probeWimlib()
 
 	backoff := 3
 	for {
@@ -240,6 +243,24 @@ func (c *Client) RunForever() {
 			backoff = 30
 		}
 	}
+}
+
+// wimlibVerRe 从 `wimlib-imagex --version` 的输出里取版本号。
+var wimlibVerRe = regexp.MustCompile(`(?i)wimlib-imagex\s+([0-9]+(?:\.[0-9]+)+)`)
+
+// probeWimlib 异步探测 wimlib 版本，界面右下角显示（PE 里才有，已装系统通常为空）。
+func (c *Client) probeWimlib() {
+	cmd := exec.Command("wimlib-imagex.exe", "--version")
+	hideWindow(cmd)
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	m := wimlibVerRe.FindStringSubmatch(string(out))
+	if len(m) < 2 {
+		return
+	}
+	c.setInfo(func(i *Info) { i.WimlibVer = m[1] })
 }
 
 func (c *Client) onDisconnected(reason string) {
@@ -459,6 +480,14 @@ func (c *Client) runCommand(msg *protocol.Message) {
 		}
 	}()
 	eng := c.engine
+	// 统一记录「收到什么指令」——界面日志里能直接看出控制端下发了哪些操作。
+	if op := msg.OpName(); op != "" {
+		if txt := strings.TrimSpace(msg.Text); txt != "" && msg.Op == protocol.OpShell {
+			c.Log(fmt.Sprintf("收到指令 %s：%s", op, txt))
+		} else {
+			c.Log("收到指令 " + op)
+		}
+	}
 	switch msg.Op {
 	case protocol.OpShell:
 		eng.cmdSHELL(msg.Text)
@@ -478,10 +507,8 @@ func (c *Client) runCommand(msg *protocol.Message) {
 		script := string(msg.Payload)
 		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(script)), "AUTOPARTITION") {
 			// 智能自动分区：客户端按自己的磁盘容量算方案
-			c.Log("收到智能自动分区指令")
 			eng.ExecRaw(strings.TrimSpace(script))
 		} else {
-			c.Log("收到分区指令")
 			eng.diskpart(script)
 		}
 	case protocol.OpInstall, protocol.OpBackup, protocol.OpInjectDrv:
@@ -500,7 +527,6 @@ func (c *Client) runCommand(msg *protocol.Message) {
 		}
 	case protocol.OpFixBoot, protocol.OpRebuildMBR:
 		// payload 是原始命令行（bcdboot / bcdedit / bootsect）
-		c.Log("收到引导修复指令")
 		for _, line := range strings.Split(string(msg.Payload), "\r\n") {
 			cmd := strings.TrimSpace(line)
 			if cmd == "" {
@@ -575,8 +601,16 @@ func (c *Client) pullFile(msg *protocol.Message) {
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		c.Log("创建目录失败：" + err.Error())
-		return
+		// 目标盘不可写（PE 里常见：D: 是光驱/只读，或盘符根本不存在）。
+		// 以前直接 return，控制端只看到"推送文件"然后就没下文，像卡死；
+		// 现在自动换到剩余空间最大的盘，并把换路径的原因打出来。
+		alt := c.engine.maxFreeDrive() + `:\DPPXE_Recv\` + filepath.Base(target)
+		c.Log(fmt.Sprintf("目标目录不可写（%v），改用 %s", err, alt))
+		target = alt
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			c.Log("创建目录失败（兜底也失败）：" + err.Error())
+			return
+		}
 	}
 	fh, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {

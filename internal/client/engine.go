@@ -163,6 +163,7 @@ func (e *Engine) Run(cmdline string, wait bool, timeout int) (int, string) {
 	}
 	// 用原样命令行调 cmd.exe，避免 Go 把路径里的引号转义成 \" 后被 cmd 吞掉
 	// （带空格的路径会因此打不开，典型症状：diskpart 报"无法打开脚本文件"）。
+	e.log("> " + cmdline)
 	cmd := exec.Command("cmd.exe")
 	hideWindowCmdLine(cmd, `cmd.exe /c "`+cmdline+`"`)
 	if !wait {
@@ -410,6 +411,16 @@ func (e *Engine) ExecRaw(line string) {
 			e.log(fmt.Sprintf("指令 %s 异常：%v", word, r))
 		}
 	}()
+	// 界面上要能看到「到底执行了什么指令」：参数一并打出来（过长时截断）。
+	shown := rest
+	if len([]rune(shown)) > 160 {
+		shown = string([]rune(shown)[:160]) + "…"
+	}
+	if shown == "" {
+		e.log("执行指令 " + word)
+	} else {
+		e.log(fmt.Sprintf("执行指令 %s %s", word, shown))
+	}
 	h(rest)
 }
 

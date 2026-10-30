@@ -155,8 +155,15 @@ func (t *TftpServer) serve(req []byte, addr *net.UDPAddr) {
 
 	if path == "" {
 		sendTftpError(sock, addr, 1, "File not found")
-		t.log(fmt.Sprintf("TFTP 404 %s <- %s  (根目录 %s 下找不到该文件)",
-			filename, addr.IP, absPath(t.root)), "err")
+		// UEFI 启动时会"探测性"地依次尝试多个路径（先 \BCD 再 \Boot\BCD）、
+		// 以及 Secure Boot 策略/语言资源/字体等可选文件。找不到属于正常现象，
+		// 用 err 级别刷屏会让人以为网络启动失败了。
+		if isOptionalTftpFile(filename) {
+			t.log(fmt.Sprintf("TFTP 跳过 %s（可选文件，PE 里没有属正常）", filename), "info")
+		} else {
+			t.log(fmt.Sprintf("TFTP 404 %s <- %s  (根目录 %s 下找不到该文件)",
+				filename, addr.IP, absPath(t.root)), "err")
+		}
 		return
 	}
 
@@ -203,8 +210,10 @@ func (t *TftpServer) serve(req []byte, addr *net.UDPAddr) {
 		oack := make([]byte, 2, 2+len(body))
 		binary.BigEndian.PutUint16(oack, tftpOACK)
 		oack = append(oack, body...)
-		if !sendWaitAck(sock, addr, oack, 0) {
-			t.log("TFTP OACK 超时 "+filename, "warn")
+		if !sendWaitAckT(sock, addr, oack, 0, 2, time.Second) {
+			// 客户端常常在收到 OACK 之前就重发了 RRQ（或已经转到别的会话），
+			// 这种"没人应答"很常见，且已有新的请求在跑，不是传输失败。
+			t.log("TFTP OACK 无应答，放弃本次请求 "+filename+"（客户端通常会重发）", "info")
 			return
 		}
 	}
@@ -249,12 +258,20 @@ func (t *TftpServer) serve(req []byte, addr *net.UDPAddr) {
 
 // sendWaitAck 发一包并等 ACK，最多重试 4 次。
 func sendWaitAck(sock *net.UDPConn, addr *net.UDPAddr, pkt []byte, block uint16) bool {
+	return sendWaitAckT(sock, addr, pkt, block, 4, 2*time.Second)
+}
+
+// sendWaitAckT 发一个包并等对应块号的 ACK（可配置重试次数与单次超时）。
+// 数据块用 4×2s；OACK 只需要 2×1s——OACK 没人应答时客户端多半已经重发 RRQ，
+// 等太久只会让日志和资源白白拖着。
+func sendWaitAckT(sock *net.UDPConn, addr *net.UDPAddr, pkt []byte, block uint16,
+	attempts int, timeout time.Duration) bool {
 	buf := make([]byte, 1024)
-	for attempt := 0; attempt < 4; attempt++ {
+	for attempt := 0; attempt < attempts; attempt++ {
 		if _, err := sock.WriteToUDP(pkt, addr); err != nil {
 			return false
 		}
-		_ = sock.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_ = sock.SetReadDeadline(time.Now().Add(timeout))
 		for {
 			n, peer, err := sock.ReadFromUDP(buf)
 			if err != nil {
@@ -268,6 +285,27 @@ func sendWaitAck(sock *net.UDPConn, addr *net.UDPAddr, pkt []byte, block uint16)
 					return true
 				}
 			}
+		}
+	}
+	return false
+}
+
+// isOptionalTftpFile 判断是不是"启动过程探测性的可选文件"。
+//
+// UEFI/Windows 启动管理器会按固定顺序尝试多个路径和可选资源，
+// 缺了会自动降级，不算错误：
+//   - 根目录 \BCD（随后会试 \Boot\BCD）
+//   - *.p7b / *.pol：Secure Boot 代码完整性策略、BitLocker 解锁策略
+//   - *.mui：语言资源
+//   - *.ttf：启动界面字体
+func isOptionalTftpFile(name string) bool {
+	n := strings.ToLower(strings.ReplaceAll(name, "/", `\`))
+	if n == `\bcd` {
+		return true
+	}
+	for _, suf := range []string{".p7b", ".pol", ".mui", ".ttf"} {
+		if strings.HasSuffix(n, suf) {
+			return true
 		}
 	}
 	return false

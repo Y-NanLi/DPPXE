@@ -293,10 +293,12 @@ func (c *ControlServer) sessionLoop(raw net.Conn) {
 	c.mu.Unlock()
 
 	// args: [编号, 主版本, 次版本, 修订, 端口, 0,0,0]；text = 服务端 IP
+	// 版本号必须回真实值：被控端界面直接显示「服务端 版本」。
+	major, minor, patch := config.VersionParts()
 	ack := protocol.New(protocol.OpHelloAck)
 	ack.ClientID = cid
 	ack.Seq = c.nextSeq()
-	ack.WithArgs(cid, 1, 0, 0, uint32(c.cfg.ControlPort), 0, 0, 0)
+	ack.WithArgs(cid, major, minor, patch, uint32(c.cfg.ControlPort), 0, 0, 0)
 	ack.Text = c.cfg.ServerIP
 	_ = conn.Send(ack)
 
@@ -509,8 +511,15 @@ func (c *ControlServer) PushFile(path, targetDir string) error {
 	c.mu.Unlock()
 
 	name := filepath.Base(path)
+	targets := c.Targets()
+	if len(targets) == 0 {
+		// 以前这里静默跳过：日志照样打"推送文件"，但一个目标都没有，
+		// 界面上看起来就是"发出去了但什么都没发生"。必须报出来。
+		return fmt.Errorf("没有选中的客户端（在线 %d 台，可能都没勾选）", c.Count())
+	}
 	c.log(fmt.Sprintf("推送文件 %s (%d B, %d 片) -> %s", name, job.Size, job.Total, targetDir), "info")
-	for _, ses := range c.Targets() {
+	sent := 0
+	for _, ses := range targets {
 		ses.mu.Lock()
 		ses.Received = 0
 		ses.Total = job.Total
@@ -521,8 +530,16 @@ func (c *ControlServer) PushFile(path, targetDir string) error {
 		m := *seed
 		m.ClientID = ses.CID
 		m.Seq = c.nextSeq()
-		_ = ses.Conn.Send(&m)
+		if err := ses.Conn.Send(&m); err != nil {
+			c.log(fmt.Sprintf("#%d 发送文件种子失败: %v", ses.CID, err), "err")
+			continue
+		}
+		sent++
 	}
+	if sent == 0 {
+		return fmt.Errorf("文件种子发送失败（%d 台目标全部失败）", len(targets))
+	}
+	c.log(fmt.Sprintf("已向 %d 台客户端发送文件种子: %s", sent, name), "info")
 	c.notify()
 	return nil
 }

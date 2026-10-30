@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  被控端原生界面（walk / Win32）需要的程序集清单：
+  - Microsoft.Windows.Common-Controls v6：没有它控件是 Win95 外观，
+    而且 walk 初始化 ToolTip 时会直接失败（TTM_ADDTOOL failed）。
+  - dpiAware：高分屏下字体不被系统拉伸，界面不糊。
+
+  用法：和 DP-PXEClient.exe 放在同一目录，文件名必须是 DP-PXEClient.exe.manifest。
+  注入 PE 时由 pe/update_cmds.txt 一起复制。
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="DPPXE.Client" type="win32"/>
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls"
+                        version="6.0.0.0" processorArchitecture="*"
+                        publicKeyToken="6595b64144ccf1df" language="*"/>
+    </dependentAssembly>
+  </dependency>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+    </windowsSettings>
+  </application>
+</assembly>

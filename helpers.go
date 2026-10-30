@@ -18,6 +18,7 @@ import (
 var (
 	kernel32               = windows.NewLazySystemDLL("kernel32.dll")
 	procAllocConsole       = kernel32.NewProc("AllocConsole")
+	procAttachConsole      = kernel32.NewProc("AttachConsole")
 	procSetConsoleCP       = kernel32.NewProc("SetConsoleCP")
 	procSetConsoleOutputCP = kernel32.NewProc("SetConsoleOutputCP")
 	procSetConsoleTitleW   = kernel32.NewProc("SetConsoleTitleW")
@@ -36,13 +37,19 @@ func signalNotify(ch chan os.Signal) {
 
 // ensureConsole 给 windowsgui 子系统的进程补一个控制台窗口。
 //
-// DP-PXE.exe 编译时带了 -H windowsgui（双击不弹黑框），但同一个 exe 也可能
-// 当被控端用（--client / --sim / --selftest）。这种时候没有 stdout，日志全丢，
-// 用户看到的就是"启动没反应"，所以这里主动 AllocConsole 并把标准流接回去。
-// 已有控制台时 AllocConsole 返回 0，忽略即可。
+// DP-PXE.exe / DP-PXEClient.exe 编译时带了 -H windowsgui（双击不弹黑框），
+// 但同一个 exe 也会当被控端用（--nogui / --client / --selftest）。这种时候
+// 没有 stdout，日志全丢，用户看到的就是"启动没反应"。
+//
+// 顺序很重要：**先试着附着到父进程的控制台**（从 cmd / PECMD 的 start_client.cmd
+// 启动时复用同一个窗口，PE 里日志就打在原来的窗口里），失败再新开一个。
+// 原来只调 AllocConsole，会额外弹一个新窗口，PE 里容易看不到日志。
 func ensureConsole() {
-	if r, _, _ := procAllocConsole.Call(); r == 0 {
-		return
+	const attachParentProcess = ^uintptr(0) // (DWORD)-1
+	if r, _, _ := procAttachConsole.Call(attachParentProcess); r == 0 {
+		if r2, _, _ := procAllocConsole.Call(); r2 == 0 {
+			return
+		}
 	}
 	if out, err := os.OpenFile("CONOUT$", os.O_RDWR, 0); err == nil {
 		os.Stdout = out

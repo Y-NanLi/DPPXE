@@ -17,10 +17,28 @@ import (
 
 const (
 	AppName    = "DP-PXE (Go Rebuild)"
-	AppVersion = "1.3"
+	AppVersion = "1.4"
 	// ClientVersion 被控端版本号，握手时上报给服务端。
-	ClientVersion = "1.3"
+	ClientVersion = "1.4"
 )
+
+// VersionParts 把 AppVersion 拆成握手里用的三段版本号（"1.4" → 1,4,0）。
+//
+// 服务端握手回包必须带真实版本，否则被控端界面上的「服务端版本」永远是 1.0。
+func VersionParts() (major, minor, patch uint32) {
+	parts := strings.Split(AppVersion, ".")
+	get := func(i int) uint32 {
+		if i >= len(parts) {
+			return 0
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(parts[i]))
+		if err != nil || n < 0 {
+			return 0
+		}
+		return uint32(n)
+	}
+	return get(0), get(1), get(2)
+}
 
 // Config 全量配置。JSON 字段名与 Python 版逐字对应，便于迁移。
 type Config struct {

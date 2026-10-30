@@ -395,7 +395,7 @@ $('menuBtn').onclick = (ev) => {
 
 async function about() {
   await info('关于',
-    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.3')}<br><br>`
+    `<b>DP-PXE (Go Rebuild)</b><br>版本 ${esc((cfg && cfg.version) || '1.4')}<br><br>`
     + `按 DP-PXE Server 1.6.9 的界面与功能重写的 Go 版本（原 Python/PySide6 版重构）。<br>`
     + `网络启动（DHCP/TFTP/HTTP）走标准协议；控制通道为按原协议风格重写的实现，`
     + `需配合本项目自带的被控端 / 模拟器演示。`);

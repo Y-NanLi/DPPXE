@@ -81,6 +81,7 @@ type Info struct {
 	Connected bool   `json:"connected"`  // 是否已握手
 	Name      string `json:"name"`       // 主机名
 	Mode      string `json:"mode"`       // PE / 系统
+	WimlibVer string `json:"wimlib_ver"` // 本机 wimlib 版本（PE 里才有，界面右下角显示）
 }
 
 // Info 返回当前状态快照（线程安全）。

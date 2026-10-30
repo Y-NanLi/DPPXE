@@ -538,6 +538,18 @@ func (s *Server) PushFiles(paths []string, targetDir string) int {
 		}
 		n++
 	}
+	if n > 0 {
+		// 种子是异步的：真正传输靠客户端来拉分片。如果 10 秒内一片都没发出去，
+		// 说明客户端根本没在拉（目录不可写 / 连接异常 / 旧版客户端），
+		// 否则界面上就是进度条一直 0%，看不出到底是"慢"还是"死了"。
+		go func() {
+			time.Sleep(10 * time.Second)
+			if sent, total := ctl.PushProgress(); sent == 0 && total > 0 {
+				s.Log("文件种子已发出，但 10 秒内没有任何分片请求：请检查被控端日志"+
+					"（目标目录是否可写、连接是否正常）", "warn")
+			}
+		}()
+	}
 	return n
 }
 

@@ -1,7 +1,7 @@
-# DP-PXE —— Go 重构版（v1.3）
+# DP-PXE —— Go 重构版（v1.4）
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
+[![Version](https://img.shields.io/badge/version-1.4-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
 
 **DP-PXE** 是一个 Windows 平台的 **PXE 网启 + 批量装机** 服务端 / 被控端工具：
@@ -199,6 +199,25 @@ bin\DP-PXE.exe --client --gui --server 10.0.0.133   :: 图形界面被控端
   最小化/关闭按钮通过 `/api/client/cmd` 调 Wails runtime。
 - 界面每 400ms 拉 `/api/client/state?since=<seq>`，只增量追加日志，不重复刷屏。
 - 握手成功、文件传输、断线重连的进度都会实时反映到圆环和机器号颜色上。
+- 界面上能看到「操作了什么命令」：`收到指令 <OP>` → `执行指令 <指令名> <参数>` → `> <实际命令行>`。
+- 右下角显示 `Wimlib Ver:x.x`（启动时异步探测 `wimlib-imagex --version`）。
+
+### 4.1.1 PE 里的原生界面（v1.4 新增，不依赖 WebView2）
+
+PE 没有 WebView2，Wails 一旦调用就会弹「The WebView2 runtime is required」的模态框，
+不点掉进程卡死、被控端等于完全离线。所以 **PE 里换了一套实现**：
+
+| 项 | 说明 |
+| --- | --- |
+| 实现 | `internal/client/uigui_windows.go`，用 [walk](https://github.com/lxn/walk)（纯 user32/gdi32 封装）自绘 700×430 窗口，**零运行时依赖**、仍是单 exe |
+| 内容 | 大字机器号（未连接红色 / 连接后绿色）、进度百分比、客户端/服务端 IP 与版本、只读滚动日志（带时间戳）、右下角 wimlib 版本 |
+| 刷新 | 每 400ms 取一次客户端状态 |
+| 兜底 | 若这台 PE 开不了窗口（无桌面 / 被精简），自动退回控制台并打印原因 |
+
+> ⚠️ **必须内嵌 manifest**：walk 依赖 comctl32 v6 视觉样式，Go 编译的 exe 默认没有清单，
+> 初始化控件会直接失败（`TTM_ADDTOOL failed`）。外部 `<exe>.manifest` 在 Win10 上不生效，
+> 必须用 `rsrc -manifest pe/DP-PXEClient.exe.manifest -o rsrc.syso -arch amd64` 内嵌
+> （`rsrc.syso` 已入库，`build.bat` 缺失时会自动生成）。
 
 ### 4.2 内置 VNC 查看器（不再依赖外部 tvnviewer）
 
@@ -262,7 +281,7 @@ UNCOMPRESS 解析、SETVAR）。
 
 | 项 | 说明 |
 | --- | --- |
-| 被控端界面 | **已移植**（`--client --gui`，见 4.1）。PE 里没有 WebView2，所以 PE 内仍用控制台模式（`--client`，不带 `--gui`）。 |
+| 被控端界面 | **已移植**（`--client --gui`，见 4.1）。**PE 里另有一套原生界面**（walk / user32+gdi32，不依赖 WebView2，见 4.1.1）；`--nogui` 仍可强制走控制台。 |
 | P2P 分发 | 与 Python 版一样简化成「服务端拉模式单播」，界面上保留单播/P2P 选项但行为相同。 |
 | 注入类操作 | **在被控端真实执行**：注入客户端 / VNC 会复制文件到目标盘 `C:\Windows\System32`，并用 `reg load` 写目标盘离线 `SOFTWARE` hive 的 `Run` 键实现开机启动（早期版本只写 PE 自身注册表，重启即失效，已修）。 |
 | 抓包 | 依赖系统自带 `pktmon`（Win10 1809+），行为与 Python 版一致；非管理员不会自动开。 |
@@ -303,7 +322,7 @@ bin\DP-PXEClient.exe --client --server 10.0.0.133
 :: ④ 双击 DP-PXEClient.exe（不带参数 = 图形界面 + 自动广播发现服务端）
 ```
 
-- 启动后会先打印一行 `DP-PXE 被控端 1.3 启动（主机名，系统/PE）→ 服务端 x.x.x.x:6003`，
+- 启动后会先打印一行 `DP-PXE 被控端 1.4 启动（主机名，系统/PE）→ 服务端 x.x.x.x:6003`，
   连不上会每 3→6→12→24→30 秒自动重连，并打印具体原因（服务端没开 / 防火墙 / IP 不对）。
 - 用 `DP-PXE.exe --client` 也可以，程序会自己补一个控制台窗口（GUI 子系统本来没有 stdout）。
 - 老版本菜单传的 `--gui` 参数现在会被忽略，不会再导致参数解析失败退出。
@@ -426,7 +445,7 @@ v1.3 起引导修复的逻辑是：
 | 路径 | 作用 |
 | --- | --- |
 | `\Program Files\DP-PXEClient\DP-PXEClient.exe` | Go 版被控端本体 |
-| `\DPPXE\start_client.cmd` | 等网络就绪 → 拉起被控端 `--nogui`，进程退了自动重启 |
+| `\DPPXE\start_client.cmd` | 等网络就绪 → `start "" DP-PXEClient.exe --gui` 后立即退出（不留黑框；客户端自身断线重连） |
 | `\Windows\System32\Pecmd.ini` | 末尾追加一行 `EXEC %SystemRoot%\System32\cmd.exe /c X:\DPPXE\start_client.cmd`（这个 PE 是 PECMD 启动的，这条才是真正生效的） |
 | `\Windows\System32\startnet.cmd` | 兜底：万一某台机器走 winpeshl 启动也能拉起 |
 | `\Windows\System32\wimlib-imagex.exe`、`libwim-15.dll` | 还原镜像用（必须在 PATH 里，否则 wimlib 调不到） |
@@ -437,10 +456,11 @@ v1.3 起引导修复的逻辑是：
 ```
 PXE → DHCP → TFTP(BootX64.EFI / pxeboot.n12) → BCD → boot.sdi + win11x64.WIM（内容=fyboot）
   → WinPE 启动 → PECMD 执行 Pecmd.ini → 末尾 EXEC start_client.cmd
-  → 等 IPv4 就绪 → DP-PXEClient.exe --nogui → 连服务端 6003 → 列表里出现 001
+  → 等 IPv4 就绪 → DP-PXEClient.exe --gui（原生窗口）→ 连服务端 6003 → 列表里出现 001
 ```
 
-- 被控端在 PE 里是**控制台模式**（PE 没有 WebView2），日志同时回传服务端，服务端日志区能看到 `[#001] ...`。
+- 被控端在 PE 里是**原生窗口界面**（walk，不依赖 WebView2，见 4.1.1）；想看纯控制台日志就改用 `--nogui`。
+  日志同时回传服务端，服务端日志区能看到 `[#001] ...`。
 - 控制台已切到 UTF-8（`SetConsoleOutputCP(65001)`），中文不乱码。
 
 重新注入（改了被控端之后）：

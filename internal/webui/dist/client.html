@@ -11,7 +11,7 @@
   <!-- 标题栏（无边框窗口，整条可拖动） -->
   <div class="tbar">
     <div class="logo">DP</div>
-    <div class="ttl" id="title">DP-PXEClient 1.3</div>
+    <div class="ttl" id="title">DP-PXEClient: 1.4.0</div>
     <div class="spacer"></div>
     <button class="tbtn" id="btnMin" title="最小化">—</button>
     <button class="tbtn close" id="btnClose" title="关闭">✕</button>
@@ -22,9 +22,9 @@
     <div class="head">
       <div class="no" id="lblNo">机器号:未知</div>
       <div class="ring">
-        <svg width="84" height="84" viewBox="0 0 84 84">
-          <circle class="track" cx="42" cy="42" r="36"></circle>
-          <circle class="bar" id="ringBar" cx="42" cy="42" r="36"></circle>
+        <svg width="88" height="88" viewBox="0 0 88 88">
+          <circle class="track" cx="44" cy="44" r="39"></circle>
+          <circle class="bar" id="ringBar" cx="44" cy="44" r="39"></circle>
         </svg>
         <div class="pct" id="lblPct">0%</div>
       </div>
@@ -33,21 +33,23 @@
     <!-- 客户端 / 服务端信息 -->
     <div class="info">
       <div class="line">
-        <span class="k">客户端IP:</span> <span id="lblCliIP">0.0.0.0</span>
+        <span class="k">客户端IP:</span> <span class="v" id="lblCliIP">0.0.0.0</span>
         <span class="gap"></span>
-        <span class="k">版本:</span> <span id="lblCliVer">1.3</span>
+        <span class="k">版本:</span> <span class="v" id="lblCliVer">1.4</span>
       </div>
       <div class="line">
-        <span class="k">服务端IP:</span> <span id="lblSrvIP">0.0.0.0</span>
+        <span class="k">服务端IP:</span> <span class="v" id="lblSrvIP">0.0.0.0</span>
         <span class="gap"></span>
-        <span class="k">版本:</span> <span id="lblSrvVer">未知</span>
+        <span class="k">版本:</span> <span class="v" id="lblSrvVer">未知</span>
       </div>
     </div>
 
-    <!-- 日志 -->
+    <!-- 日志（点某行可选中高亮） -->
     <div class="log" id="log"></div>
 
-    <div class="foot">Go Rebuild · Wails</div>
+    <div class="foot">
+      <span id="lblWimlib">Wimlib Ver:未知</span>
+    </div>
   </div>
 </div>
 <script src="client.js"></script>

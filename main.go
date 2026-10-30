@@ -122,14 +122,35 @@ func main() {
 
 	if runAsClient {
 		cli := client.New(*serverAddr, *port, *dryRun, *clientName, *quiet, client.Callbacks{})
-		// GUI 规则：显式 --gui 一定开；客户端二进制只要没写 --nogui 就开界面
-		//（PE 里没有 WebView2，--nogui 走控制台；双击则是界面）
-		wantGUI := *guiClient || (clientBinary && !*nogui)
+		// GUI 规则：显式 --gui 一定开；客户端二进制只要没写 --nogui 就开界面。
+		//
+		// 但 **PE 里不能用 Wails**：PE 没有 WebView2，Wails 会弹
+		// "The WebView2 runtime is required" 的模态框卡住整个被控端。
+		// PE 改用原生 Win32 界面（client.RunNativeGUI，纯 user32/gdi32）。
+		inPE := client.IsPE()
+		wantGUI := (*guiClient || (clientBinary && !*nogui)) && !inPE
 		if wantGUI {
 			if err := runClientGUI(cli); err == nil {
 				return
 			}
 			fmt.Println("被控端界面启动失败，改用控制台模式…")
+		}
+		// PE：默认开原生界面；--nogui 或开窗失败则退回控制台。
+		if inPE && !*nogui {
+			if err := client.RunNativeGUI(cli); err == nil {
+				return
+			} else {
+				// 先把控制台补出来再报错，否则这行会写到无效句柄上丢掉。
+				ensureConsole()
+				fixConsoleCodepage()
+				fmt.Println("PE 图形界面启动失败，改用控制台模式：", err)
+			}
+		}
+		// PE 里双击（不带任何参数）时 needConsole 为 false，但控制台模式必须有
+		// 输出，否则用户看到的就是"启动了但什么都没有"。
+		if inPE && !needConsole {
+			ensureConsole()
+			fixConsoleCodepage()
 		}
 		cli.RunForever()
 		return

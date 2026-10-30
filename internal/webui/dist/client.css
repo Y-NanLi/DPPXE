@@ -1,5 +1,5 @@
-/* DP-PXEClient（Go 版）—— 按原版被控端界面 1:1 还原：
-   蓝色渐变细标题栏 / 大字机器号 / 右上圆形进度 / 两行信息 / 带序号的日志列表 */
+/* DP-PXEClient（Go 版）—— 对齐原版被控端界面：
+   浅蓝渐变细标题栏 / 大字机器号 / 右上圆形进度 / 两行信息 / 带序号的日志列表 */
 
 * { box-sizing: border-box; }
 
@@ -11,7 +11,7 @@ html, body {
   font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   font-size: 12px;
   color: #1c1c1c;
-  background: #f7fafd;
+  background: #ffffff;
   user-select: none;
 }
 
@@ -19,67 +19,69 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  border: 1px solid #4b86c4; /* 无边框窗口给一条细描边，视觉上有轮廓 */
+  background: #ffffff;
+  border: 1px solid #7aa7d6; /* 无边框窗口给一条细描边，视觉上有轮廓 */
 }
 
 /* ---------------- 标题栏 ---------------- */
 .tbar {
-  flex: 0 0 34px;
-  height: 34px;
+  flex: 0 0 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 6px 0 8px;
-  background: linear-gradient(180deg, #5b9bd5 0%, #3f7fc4 100%);
+  padding: 0 4px 0 6px;
+  background: linear-gradient(180deg, #dbe9fb 0%, #b9d3f0 100%);
+  border-bottom: 1px solid #9dbfe4;
   /* 无边框窗口拖动区 */
   --wails-draggable: drag;
 }
 
 .tbar .logo {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  background: #7fb2e5;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  background: #3f7fc4;
   color: #fff;
   font-weight: bold;
-  font-size: 13px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .tbar .ttl {
-  color: #fff;
-  font-size: 12.5px;
+  color: #16324f;
+  font-size: 12px;
   letter-spacing: .2px;
 }
 
 .tbar .spacer { flex: 1; }
 
 .tbar .tbtn {
-  width: 26px;
-  height: 22px;
+  width: 28px;
+  height: 20px;
   border: none;
   background: transparent;
-  color: #fff;
-  font-size: 13px;
+  color: #16324f;
+  font-size: 12px;
   line-height: 1;
   border-radius: 2px;
   cursor: pointer;
   padding: 0;
   --wails-draggable: no-drag;
 }
-.tbar .tbtn:hover { background: rgba(255,255,255,.22); }
-.tbar .tbtn.close:hover { background: #e04a4a; }
+.tbar .tbtn:hover { background: rgba(63,127,196,.22); }
+.tbar .tbtn.close:hover { background: #e04a4a; color: #fff; }
 
 /* ---------------- 主体 ---------------- */
 .body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 16px 8px;
-  background: linear-gradient(135deg, #f7fafd 0%, #eef4fb 100%);
+  gap: 6px;
+  padding: 8px 12px 6px;
+  background: #ffffff;
   min-height: 0;
 }
 
@@ -91,31 +93,31 @@ html, body {
 
 .no {
   flex: 1;
-  font-size: 40px;
-  line-height: 1.15;
+  font-size: 42px;
+  line-height: 1.1;
   font-weight: bold;
-  color: #d92b2b;             /* 未连接：红色"未知" */
+  color: #e00000;             /* 未连接：红色"未知" */
   letter-spacing: 1px;
-  padding-top: 2px;
+  padding-top: 4px;
 }
 .no.on { color: #1a7f37; }     /* 已连接：绿色机器号 */
 
 /* 圆形进度 */
 .ring {
   position: relative;
-  width: 84px;
-  height: 84px;
-  flex: 0 0 84px;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 88px;
 }
 .ring svg { display: block; transform: rotate(-90deg); }
-.ring .track { fill: none; stroke: #d6e2f2; stroke-width: 6; }
+.ring .track { fill: none; stroke: #dcdcdc; stroke-width: 2; }
 .ring .bar {
   fill: none;
-  stroke: #3b82d6;
-  stroke-width: 6;
+  stroke: #2f6fb5;
+  stroke-width: 3;
   stroke-linecap: round;
-  stroke-dasharray: 226.19;   /* 2πr, r=36 */
-  stroke-dashoffset: 226.19;
+  stroke-dasharray: 245.04;   /* 2πr, r=39 */
+  stroke-dashoffset: 245.04;
   transition: stroke-dashoffset .25s ease;
 }
 .ring .pct {
@@ -125,44 +127,55 @@ html, body {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  color: #4a5568;
+  color: #000000;
 }
 
 /* 信息两行 */
-.info { display: flex; flex-direction: column; gap: 2px; }
-.info .line { font-size: 12px; color: #1c1c1c; }
-.info .k { color: #1a4f9c; }
-.info .gap { display: inline-block; width: 26px; }
+.info { display: flex; flex-direction: column; gap: 3px; padding: 2px 0 0 4px; }
+.info .line { font-size: 12.5px; color: #1c1c1c; }
+.info .k { color: #14489c; font-weight: bold; }
+.info .v { color: #1c1c1c; }
+.info .gap { display: inline-block; width: 34px; }
 
 /* 日志 */
 .log {
   flex: 1;
   min-height: 60px;
   background: #ffffff;
-  border: 1px solid #c9d6e6;
+  border: 1px solid #a9b7c6;
   overflow: auto;
-  padding: 2px 4px;
+  padding: 0;
   font-family: Consolas, "Microsoft YaHei UI", monospace;
-  font-size: 11.5px;
+  font-size: 12px;
   color: #243447;
   user-select: text;
 }
 .log .row {
   display: flex;
   gap: 6px;
-  padding: 1px 2px;
-  line-height: 1.5;
+  padding: 1px 6px;
+  line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-all;
+  cursor: default;
 }
-.log .row:nth-child(odd) { background: #fbfdff; }
-.log .n { color: #7b8a9c; min-width: 22px; text-align: right; flex: 0 0 auto; }
+.log .row:nth-child(odd) { background: #fafcff; }
+.log .row.sel {
+  background: #3399ff;
+  color: #ffffff;
+}
+.log .row.sel .n,
+.log .row.sel .ts { color: #eaf4ff; }
+.log .n { color: #7b8a9c; min-width: 24px; text-align: right; flex: 0 0 auto; }
 .log .ts { color: #7b8a9c; flex: 0 0 auto; }
 .log .tx { flex: 1; }
 
+/* 右下角 wimlib 版本（绿色小字，和原版一致） */
 .foot {
-  text-align: right;
+  display: flex;
+  justify-content: flex-end;
   font-size: 11px;
-  color: #8a97a6;
+  color: #1a9c3a;
   padding-top: 1px;
+  min-height: 14px;
 }
