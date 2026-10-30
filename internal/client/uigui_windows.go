@@ -10,7 +10,10 @@ package client
 // 单 exe、零运行时依赖，WinPE 里必定可用。
 
 import (
+	"bytes"
+	_ "embed"
 	"fmt"
+	"image/png"
 	"runtime"
 	"strings"
 	"time"
@@ -21,6 +24,27 @@ import (
 
 	"dppxe/internal/config"
 )
+
+// appIconPNG 窗口图标（256x256，由 cmd/icongen 从 assets/icon-src.webp 生成）。
+//
+//go:embed appicon.png
+var appIconPNG []byte
+
+// windowIcon 生成窗口图标。
+//
+// 这里**必须保证返回值非 nil**：declarative 的 Icon 字段是 interface{}，
+// 如果把 (*walk.Icon)(nil) 塞进去会变成"有类型的 nil"，walk 内部
+// `if src == nil` 判不住，随后直接解引用 → panic（实测崩过一次，
+// 现象就是 PE 里被控端完全起不来）。
+func windowIcon() *walk.Icon {
+	if img, err := png.Decode(bytes.NewReader(appIconPNG)); err == nil {
+		if ic, err := walk.IconFrom(img, 96); err == nil && ic != nil {
+			return ic
+		}
+	}
+	// 兜底：系统默认图标（stock icon，永远不是 nil）
+	return walk.IconApplication()
+}
 
 // 界面控件（包级变量，render 里直接更新）。
 var (
@@ -42,15 +66,24 @@ const guiLogMax = 400 // 界面最多保留的日志行数
 //
 // 返回 nil 表示界面正常跑完（用户关窗）；返回错误表示这个环境开不了窗口
 // （比如纯命令行的 WinPE），调用方应退回控制台模式。
-func RunNativeGUI(c *Client) error {
+func RunNativeGUI(c *Client) (err error) {
+	// 兜底：walk 内部有若干 typed-nil / 资源加载的坑，一旦 panic 就会把整个
+	// 被控端带走（PE 里表现为"完全没启动"）。这里接住，退回控制台模式。
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("界面异常: %v", r)
+		}
+	}()
+
 	// walk（Win32）要求窗口的创建和消息循环在同一个 OS 线程上。
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
 	title := "DP-PXEClient: " + config.ClientVersion
-	err := d.MainWindow{
+	err = d.MainWindow{
 		AssignTo: &guiMW,
 		Title:    title,
+		Icon:     windowIcon(),
 		Size:     d.Size{Width: 700, Height: 430},
 		MinSize:  d.Size{Width: 560, Height: 330},
 		Layout: d.VBox{

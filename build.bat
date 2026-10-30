@@ -32,9 +32,10 @@ echo == 拉取依赖 ==
 
 rem 被控端的原生界面（walk）依赖 comctl32 v6 视觉样式，必须把 manifest 嵌进 exe；
 rem 否则 PE 里开窗口会直接失败（TTM_ADDTOOL failed）。rsrc.syso 已入库，正常不用重新生成。
+rem 注意：必须同时带 -ico，否则重新生成会把 exe 的文件/任务栏图标丢掉。
 if not exist "rsrc.syso" (
-    echo == 生成程序集清单 rsrc.syso ==
-    "%GO%" run github.com/akavel/rsrc@latest -manifest pe\DP-PXEClient.exe.manifest -o rsrc.syso -arch amd64 || goto :fail
+    echo == 生成程序集清单 + 图标 rsrc.syso ==
+    "%GO%" run github.com/akavel/rsrc@latest -manifest pe\DP-PXEClient.exe.manifest -ico assets\app.ico -o rsrc.syso -arch amd64 || goto :fail
 )
 
 echo == 编译图形界面版 ==

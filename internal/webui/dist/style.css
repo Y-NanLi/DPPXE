@@ -1,21 +1,22 @@
-/* DP-PXE (Go) —— 视觉对齐 Python/PySide6 版：
-   蓝色渐变标题栏 / 浅灰底 / 白卡片 / 浅蓝按钮 */
+/* DP-PXE (Go) —— 蓝白主题：
+   深蓝渐变标题栏 / 淡蓝底 / 白卡片 / 蓝白按钮
+   （配色取自角色：深蓝裙 #2c4a86、亮蓝发 #6fa8e8、白围裙 #ffffff） */
 :root {
-  --bg: #f0f0f0;
+  --bg: #edf3fc;
   --card: #ffffff;
-  --border: #c9c9c9;
-  --border-light: #e2e2e2;
-  --text: #1f1f1f;
-  --muted: #6b6b6b;
-  --accent: #2f6fc4;
-  --accent-dark: #1f4f96;
-  --danger: #cc0000;
+  --border: #c5d8f0;
+  --border-light: #e4eefb;
+  --text: #17263f;
+  --muted: #5d7391;
+  --accent: #3a6fc4;
+  --accent-dark: #23447c;
+  --danger: #c93434;
   --ok: #1d7a4d;
   --warn: #b3541e;
-  --btn-top: #a5dff9;
-  --btn-bottom: #6cc3ea;
-  --btn-border: #4fa3c9;
-  --btn-text: #0b2c42;
+  --btn-top: #6fa8e8;
+  --btn-bottom: #4679c4;
+  --btn-border: #35619e;
+  --btn-text: #ffffff;
 }
 
 * { box-sizing: border-box; }
@@ -38,18 +39,35 @@ html, body {
 .titlebar {
   height: 72px;
   flex: 0 0 72px;
-  background: linear-gradient(180deg, #4f8ade 0%, #376bc0 100%);
+  background: linear-gradient(135deg, #2c4a86 0%, #1a2f57 100%);
   display: flex;
   align-items: center;
   padding: 0 14px 0 18px;
   gap: 12px;
   color: #fff;
+  position: relative;
+  /* 底部一条白边，呼应角色的白围裙/蕾丝 */
+  box-shadow: inset 0 -3px 0 rgba(255, 255, 255, .92);
+}
+/* 右上角几个淡淡的白色光斑，避免大片纯色显得死板（不拦截鼠标） */
+.titlebar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 86% 18%, rgba(255, 255, 255, .16) 0 5px, transparent 6px),
+    radial-gradient(circle at 93% 58%, rgba(255, 255, 255, .11) 0 9px, transparent 10px),
+    radial-gradient(circle at 76% 80%, rgba(255, 255, 255, .09) 0 4px, transparent 5px),
+    radial-gradient(circle at 68% 22%, rgba(255, 255, 255, .07) 0 3px, transparent 4px);
 }
 .logo {
   width: 44px; height: 44px; border-radius: 22px;
-  background: rgba(255,255,255,.22);
+  background: #ffffff;
+  color: #2c4a86;
   display: flex; align-items: center; justify-content: center;
   font-weight: bold; font-size: 17px; letter-spacing: .5px;
+  box-shadow: 0 2px 6px rgba(10, 24, 48, .28);
 }
 .titles h1 { margin: 0; font-size: 23px; font-weight: bold; line-height: 1.15; }
 .titles .sub { font-size: 11px; color: rgba(255,255,255,.85); margin-top: 2px; }
@@ -76,12 +94,13 @@ html, body {
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 8px;
   padding: 6px 10px 8px;
   display: flex;
   flex-direction: column;
   gap: 5px;
   min-height: 0;
+  box-shadow: 0 1px 3px rgba(44, 74, 134, .07);
 }
 .card > .card-title {
   color: var(--muted);
@@ -107,15 +126,16 @@ input[type=text], input[type=number], select, textarea {
   color: var(--text);
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 2px;
+  border-radius: 4px;
   padding: 3px 6px;
   outline: none;
   min-width: 0;
 }
 input[type=text]:focus, input[type=number]:focus, select:focus, textarea:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(58, 111, 196, .14);
 }
-input:disabled, select:disabled { background: #f4f4f4; color: #9a9a9a; }
+input:disabled, select:disabled { background: #f1f5fb; color: #9aaac0; }
 textarea {
   font-family: Consolas, "Microsoft YaHei UI", monospace;
   resize: none;
@@ -137,11 +157,11 @@ button {
   cursor: pointer;
   white-space: nowrap;
 }
-button:hover { background: linear-gradient(180deg, #b8e8fc 0%, #7fcef0 100%); }
-button:active { background: linear-gradient(180deg, #6cc3ea 0%, #a5dff9 100%); }
-button:disabled { background: #e8e8e8; border-color: #d2d2d2; color: #a0a0a0; cursor: default; }
+button:hover { background: linear-gradient(180deg, #86b9ef 0%, #5789cf 100%); }
+button:active { background: linear-gradient(180deg, #3f6fb8 0%, #6fa8e8 100%); }
+button:disabled { background: #e8eef7; border-color: #d3dfef; color: #a3b2c6; cursor: default; }
 button.ghost { background: #fff; border-color: var(--border); color: var(--text); }
-button.ghost:hover { background: #f5f9ff; border-color: var(--accent); }
+button.ghost:hover { background: #eff5ff; border-color: var(--accent); }
 button.dangerbtn {
   background: linear-gradient(180deg, #ffd9d9 0%, #f5b5b5 100%);
   border-color: #d98b8b; color: #7a1b1b;
@@ -169,7 +189,7 @@ button.mini { padding: 2px 8px; min-height: 22px; }
   border: 1px solid #8a8a8a;
   transition: left .14s cubic-bezier(.33,1,.68,1);
 }
-.switch.on { background: #1b1b1b; border-color: #111; }
+.switch.on { background: #3a6fc4; border-color: #23447c; }
 .switch.on::after { left: 22px; }
 
 /* ---------------- 复选框 / 单选 ---------------- */
@@ -198,7 +218,7 @@ input[type=checkbox], input[type=radio] {
   font-size: 12px;
   color: var(--text);
 }
-.tab:hover { background: #f8fbff; }
+.tab:hover { background: #f2f8ff; }
 .tab.active {
   background: #fff;
   border-top: 2px solid var(--accent);
@@ -228,13 +248,13 @@ table.clients {
   background: #fff;
 }
 table.clients th {
-  background: #f7f7f7;
+  background: #f6f9fe;
   color: var(--muted);
   font-weight: normal;
   text-align: left;
   padding: 4px 6px;
   border-bottom: 1px solid var(--border);
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid #e2ebf8;
   position: sticky; top: 0; z-index: 1;
 }
 table.clients td {
@@ -246,17 +266,17 @@ table.clients td {
   max-width: 160px;
 }
 table.clients tbody tr { cursor: default; }
-table.clients tbody tr.sel { background: #cfe4fb; }
+table.clients tbody tr.sel { background: #dce9fb; }
 table.clients td.center { text-align: center; }
 table.clients td.s-online { color: #1a7f37; font-weight: bold; }
-table.clients td.s-offline { color: #9a9a9a; }
+table.clients td.s-offline { color: #8fa1b8; }
 table.clients td.s-pxe { color: #b3541e; }
 .table-wrap { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 2px; min-height: 96px; }
 
 /* ---------------- 日志 ---------------- */
 .logpanel {
   flex: 0 0 82px;
-  background: #fbfcfd;
+  background: #fafcff;
   border: 1px solid #dcdcdc;
   border-radius: 2px;
   padding: 3px 6px;
@@ -299,9 +319,9 @@ table.clients td.s-pxe { color: #b3541e; }
   font-size: 12px;
 }
 .menu .item:hover { background: #dcebfb; }
-.menu .item.disabled { color: #a0a0a0; cursor: default; }
+.menu .item.disabled { color: #9aabc2; cursor: default; }
 .menu .item.disabled:hover { background: transparent; }
-.menu .sep { height: 1px; background: #e6e6e6; margin: 4px 8px; }
+.menu .sep { height: 1px; background: #e2ebf8; margin: 4px 8px; }
 
 /* ---------------- 模态框 ---------------- */
 .mask {
@@ -323,14 +343,14 @@ table.clients td.s-pxe { color: #b3541e; }
 .dialog .head {
   padding: 8px 14px;
   font-weight: bold;
-  background: #f4f7fb;
+  background: #f2f7fd;
   border-bottom: 1px solid #e2e2e2;
   border-radius: 4px 4px 0 0;
 }
 .dialog .content { padding: 14px; font-size: 12px; line-height: 1.65; user-select: text; }
 .dialog .content pre {
   font-family: Consolas, monospace;
-  background: #fbfcfd;
+  background: #fafcff;
   border: 1px solid #e2e2e2;
   padding: 8px;
   margin: 0;
@@ -361,7 +381,7 @@ table.clients td.s-pxe { color: #b3541e; }
   padding: 2px;
 }
 .filelist .fi { padding: 2px 6px; font-size: 12px; cursor: default; }
-.filelist .fi.sel { background: #cfe4fb; }
+.filelist .fi.sel { background: #dce9fb; }
 .filelist .fi .sz { color: var(--muted); }
 
 /* 磁盘列表 */
@@ -374,7 +394,7 @@ table.clients td.s-pxe { color: #b3541e; }
   font-size: 12px;
 }
 .disklist .di { padding: 2px 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.disklist .di.sel { background: #cfe4fb; }
+.disklist .di.sel { background: #dce9fb; }
 
 .partrow { display: flex; align-items: center; gap: 6px; }
 .partrow .idx { width: 18px; color: #333; }
@@ -389,7 +409,7 @@ table.clients td.s-pxe { color: #b3541e; }
 .vnc {
   position: fixed;
   inset: 0;
-  background: #f0f0f0;
+  background: #f0f5fc;
   display: flex;
   flex-direction: column;
   z-index: 80;
@@ -401,7 +421,7 @@ table.clients td.s-pxe { color: #b3541e; }
   align-items: center;
   gap: 10px;
   padding: 0 10px;
-  background: linear-gradient(180deg, #4f8ade 0%, #376bc0 100%);
+  background: linear-gradient(135deg, #2c4a86 0%, #1a2f57 100%);
   color: #fff;
 }
 .vnc-head .vnc-title { font-weight: bold; font-size: 12.5px; }
@@ -415,7 +435,7 @@ table.clients td.s-pxe { color: #b3541e; }
 .vnc-body {
   flex: 1;
   min-height: 0;
-  background: #f0f0f0;
+  background: #f0f5fc;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -423,7 +443,7 @@ table.clients td.s-pxe { color: #b3541e; }
   padding: 4px;
 }
 #vncCanvas {
-  background: #f0f0f0;
+  background: #f0f5fc;
   max-width: 100%;
   max-height: 100%;
   outline: none;

@@ -1,7 +1,7 @@
-# DP-PXE —— Go 重构版（v1.4）
+# DP-PXE —— Go 重构版（v1.5）
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
+[![Version](https://img.shields.io/badge/version-1.5-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
 
 **DP-PXE** 是一个 Windows 平台的 **PXE 网启 + 批量装机** 服务端 / 被控端工具：
@@ -151,6 +151,9 @@ go/
 │     └─ sim.go                客户端模拟器（控制台）
 ├─ netboot/                    PXE 引导资源（WIM 不入库，见 netboot/README.md）
 ├─ AutoCommand/                自动安装脚本示例
+├─ assets/                     icon-src.webp（源图）+ app.ico（多尺寸图标，由 icongen 生成）
+├─ cmd/icongen/                图标转换小工具（webp/png → 多尺寸 ico）
+├─ rsrc.syso                   内嵌资源（comctl32 清单 + 图标），必须入库
 └─ bin/                        编译产物
 ```
 

@@ -30,7 +30,7 @@ import (
 const HeartbeatSec = 20
 
 // VersionWord 握手用的版本字（主版本<<16 | 次版本）。
-const VersionWord = (1 << 16) | 4 // 1.4（主版本<<16 | 次版本）
+const VersionWord = (1 << 16) | 5 // 1.5（主版本<<16 | 次版本）
 
 // Callbacks 界面回调（控制台版本可全为 nil）。
 type Callbacks struct {
