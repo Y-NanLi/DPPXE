@@ -27,21 +27,28 @@
 
 ```
 分支：main
-HEAD：v2.0 发布提交（tag `v2.0`）
-提交：release: v2.0 — 左侧导航栏改版 + 布局自适应 + 产物体积优化
-标签：v2.0（已发布正式 Release）
+HEAD：9a48ddf
+提交：ci: 修复被控端编译参数——必须带 desktop,production,clientgui
+标签：v2.0（指向 9a48ddf，已发布正式 Release）
 远程：https://github.com/Y-NanLi/DPPXE.git
 ```
 
 **工作区干净，已与远程同步（0/0）**。近期版本节奏：v1.4 → v1.5 → **v2.0**：
 
 ```
-git log --oneline -4
-<hash> release: v2.0 — 左侧导航栏改版 + 布局自适应 + 产物体积优化
+git log --oneline -5
+9a48ddf ci: 修复被控端编译参数——必须带 desktop,production,clientgui
+eabf369 Merge remote-tracking branch 'origin/main'      （并入 GitHub 网页端的 Pages 工作流 + README 演示链接）
+49c52bf release: v2.0 — 左侧导航栏改版 + 布局自适应 + 产物体积优化
+092d94a Refactor release pipeline configuration
 661e04a release: v1.5 — 软件图标 + 蓝白主题皮肤 + 修复 walk typed-nil 崩溃
-1c2bedd release: v1.4 — 被控端图形界面（已装系统 + PE 原生）+ 命令回显 + 网络启动降噪
-48f93f1 docs: 开源化 README 改版（GPL-3.0 许可证 / 下载 / 贡献）+ 修正与 v1.3 不符的描述
 ```
+
+> ⚠️ **v2.0 曾因 CI 编译参数错误重发过一次**：`.github/workflows/build.yml` 里被控端原来写的是
+> `go build -trimpath -ldflags "-s -w"`（**完全没带 tags**），发出去的 `DP-PXEClient.exe` 既没有 Wails
+> （一开 GUI 弹 build tags 模态框）也没有 PE 原生界面。**v1.0–v1.5 的 Release 同样受影响**。
+> 已修正为 `-tags "desktop,production,clientgui" -ldflags "-s -w -H windowsgui"`，并删旧发布、把
+> `v2.0` 标签移到修复提交后重建。**以后发版前先看 CI 里这两条 build 命令。**
 
 已入库的新增文件：`internal/client/uigui_windows.go`（仅 `clientgui` 构建）、
 **`internal/client/uigui_stub_windows.go`（控制端的占位，v2.0 新增）**、`pe/DP-PXEClient.exe.manifest`、

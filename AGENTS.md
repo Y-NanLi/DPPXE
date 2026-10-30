@@ -181,6 +181,9 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
    - `README.md` 标题
    - `更新记录.md` 新增章节
 6. 发版：commit → tag → push（tag 触发正式 Release，push main 触发滚动 latest）
+   - **发版前必查 `.github/workflows/build.yml` 里两条 `go build` 的 tags 与 `build.bat` 一致**
+     （控制端不带 `clientgui`、被控端带 `clientgui`）。v2.0 曾因为 CI 里被控端漏了所有 tags，
+     发出去的 `DP-PXEClient.exe` 既弹 build tags 模态框、也没有 PE 原生界面（v1.0–v1.5 同样受影响）。
 
 ---
 
