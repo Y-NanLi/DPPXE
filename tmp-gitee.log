@@ -1,0 +1,272 @@
+﻿2026-10-30T17:32:47.4046861Z Current runner version: '2.338.0'
+2026-10-30T17:32:47.4072763Z ##[group]Runner Image Provisioner
+2026-10-30T17:32:47.4073640Z Hosted Compute Agent
+2026-10-30T17:32:47.4074307Z Version: 20261021.618
+2026-10-30T17:32:47.4075059Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-30T17:32:47.4076014Z Build Date: 2026-10-21T00:45:21Z
+2026-10-30T17:32:47.4076793Z Worker ID: {175bc2ab-ea62-4bf0-84f6-8dcf70271f7a}
+2026-10-30T17:32:47.4077531Z Region: westus
+2026-10-30T17:32:47.4078110Z Cloud: Azure
+2026-10-30T17:32:47.4078687Z ##[endgroup]
+2026-10-30T17:32:47.4080173Z ##[group]Operating System
+2026-10-30T17:32:47.4081018Z Ubuntu
+2026-10-30T17:32:47.4081540Z 26.04.1
+2026-10-30T17:32:47.4082145Z LTS
+2026-10-30T17:32:47.4082702Z ##[endgroup]
+2026-10-30T17:32:47.4083239Z ##[group]Runner Image
+2026-10-30T17:32:47.4083905Z Image: ubuntu-26.04
+2026-10-30T17:32:47.4084469Z Version: 20261025.179.1
+2026-10-30T17:32:47.4086233Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261025.179/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-30T17:32:47.4087920Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261025.179
+2026-10-30T17:32:47.4088968Z ##[endgroup]
+2026-10-30T17:32:47.4090452Z ##[group]GITHUB_TOKEN Permissions
+2026-10-30T17:32:47.4092848Z Contents: write
+2026-10-30T17:32:47.4093464Z Metadata: read
+2026-10-30T17:32:47.4094121Z ##[endgroup]
+2026-10-30T17:32:47.4096745Z Secret source: Actions
+2026-10-30T17:32:47.4097839Z Cache mode: write
+2026-10-30T17:32:47.4098549Z Prepare workflow directory
+2026-10-30T17:32:47.4658142Z Prepare all required actions
+2026-10-30T17:32:47.4707335Z Getting action download info
+2026-10-30T17:32:47.9349528Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-30T17:32:48.0421811Z Download action repository 'actions/download-artifact@v4' (SHA:d3f86a106a0bac45b974a628896c90dbdf5c8093)
+2026-10-30T17:32:48.4779568Z Complete job name: Gitee Release
+2026-10-30T17:32:48.5578679Z ##[group]Run actions/checkout@v4
+2026-10-30T17:32:48.5579593Z with:
+2026-10-30T17:32:48.5580043Z   repository: Y-NanLi/DPPXE
+2026-10-30T17:32:48.5584020Z   token: ***
+2026-10-30T17:32:48.5584471Z   ssh-strict: true
+2026-10-30T17:32:48.5584918Z   ssh-user: git
+2026-10-30T17:32:48.5585581Z   persist-credentials: true
+2026-10-30T17:32:48.5586093Z   clean: true
+2026-10-30T17:32:48.5586547Z   sparse-checkout-cone-mode: true
+2026-10-30T17:32:48.5587062Z   fetch-depth: 1
+2026-10-30T17:32:48.5587502Z   fetch-tags: false
+2026-10-30T17:32:48.5587944Z   show-progress: true
+2026-10-30T17:32:48.5588395Z   lfs: false
+2026-10-30T17:32:48.5588804Z   submodules: false
+2026-10-30T17:32:48.5589251Z   set-safe-directory: true
+2026-10-30T17:32:48.5589753Z   allow-unsafe-pr-checkout: false
+2026-10-30T17:32:48.5590518Z env:
+2026-10-30T17:32:48.5590926Z   GITEE_OWNER: nan-liGit
+2026-10-30T17:32:48.5591396Z   GITEE_REPO: DPPXE
+2026-10-30T17:32:48.5591919Z   GITEE_TOKEN: ***
+2026-10-30T17:32:48.5592386Z   TAG: v2.0
+2026-10-30T17:32:48.5592793Z ##[endgroup]
+2026-10-30T17:32:48.8138638Z Syncing repository: Y-NanLi/DPPXE
+2026-10-30T17:32:48.8140361Z ##[group]Getting Git version info
+2026-10-30T17:32:48.8141384Z Working directory is '/home/runner/work/DPPXE/DPPXE'
+2026-10-30T17:32:48.8143148Z [command]/usr/bin/git version
+2026-10-30T17:32:48.8166856Z git version 2.56.0
+2026-10-30T17:32:48.8188402Z ##[endgroup]
+2026-10-30T17:32:48.8205730Z Temporarily overriding HOME='/home/runner/work/_temp/ab249e82-a324-486e-a632-89fea03cc69b' before making global git config changes
+2026-10-30T17:32:48.8208742Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T17:32:48.8213427Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/DPPXE/DPPXE
+2026-10-30T17:32:48.8285617Z Deleting the contents of '/home/runner/work/DPPXE/DPPXE'
+2026-10-30T17:32:48.8289023Z ##[group]Initializing the repository
+2026-10-30T17:32:48.8293239Z [command]/usr/bin/git init /home/runner/work/DPPXE/DPPXE
+2026-10-30T17:32:48.8410875Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-30T17:32:48.8413092Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-30T17:32:48.8414770Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-30T17:32:48.8416416Z hint: call:
+2026-10-30T17:32:48.8417219Z hint:
+2026-10-30T17:32:48.8418225Z hint: 	git config --global init.defaultBranch <name>
+2026-10-30T17:32:48.8419577Z hint:
+2026-10-30T17:32:48.8420840Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-30T17:32:48.8422794Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-30T17:32:48.8424514Z hint:
+2026-10-30T17:32:48.8425689Z hint: 	git branch -m <name>
+2026-10-30T17:32:48.8426808Z hint:
+2026-10-30T17:32:48.8428288Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-30T17:32:48.8430540Z Initialized empty Git repository in /home/runner/work/DPPXE/DPPXE/.git/
+2026-10-30T17:32:48.8444291Z [command]/usr/bin/git remote add origin https://github.com/Y-NanLi/DPPXE
+2026-10-30T17:32:48.8508192Z ##[endgroup]
+2026-10-30T17:32:48.8509278Z ##[group]Disabling automatic garbage collection
+2026-10-30T17:32:48.8516770Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-30T17:32:48.8549437Z ##[endgroup]
+2026-10-30T17:32:48.8550487Z ##[group]Setting up auth
+2026-10-30T17:32:48.8558143Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T17:32:48.8596321Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-30T17:32:48.9071051Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T17:32:48.9108688Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-30T17:32:48.9385082Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T17:32:48.9422666Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-30T17:32:48.9697231Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-30T17:32:48.9739011Z ##[endgroup]
+2026-10-30T17:32:48.9740083Z ##[group]Fetching the repository
+2026-10-30T17:32:48.9749467Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +fed9ac48771f2e6909bc3505a8503b3925e21234:refs/tags/v2.0
+2026-10-30T17:32:49.5962053Z From https://github.com/Y-NanLi/DPPXE
+2026-10-30T17:32:49.5964216Z  * [new ref]         fed9ac48771f2e6909bc3505a8503b3925e21234 -> v2.0
+2026-10-30T17:32:49.5970637Z ##[endgroup]
+2026-10-30T17:32:49.5973296Z ##[group]Determining the checkout info
+2026-10-30T17:32:49.5976418Z ##[endgroup]
+2026-10-30T17:32:49.5980044Z [command]/usr/bin/git sparse-checkout disable
+2026-10-30T17:32:49.6033933Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-30T17:32:49.6068119Z ##[group]Checking out the ref
+2026-10-30T17:32:49.6070686Z [command]/usr/bin/git checkout --progress --force refs/tags/v2.0
+2026-10-30T17:32:49.6698640Z Note: switching to 'refs/tags/v2.0'.
+2026-10-30T17:32:49.6699952Z 
+2026-10-30T17:32:49.6701027Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-30T17:32:49.6703675Z changes and commit them, and you can discard any commits you make in this
+2026-10-30T17:32:49.6706679Z state without impacting any branches by switching back to a branch.
+2026-10-30T17:32:49.6708366Z 
+2026-10-30T17:32:49.6709238Z If you want to create a new branch to retain commits you create, you may
+2026-10-30T17:32:49.6711274Z do so (now or later) by using -c with the switch command. Example:
+2026-10-30T17:32:49.6713206Z 
+2026-10-30T17:32:49.6713700Z   git switch -c <new-branch-name>
+2026-10-30T17:32:49.6714477Z 
+2026-10-30T17:32:49.6714945Z Or undo this operation with:
+2026-10-30T17:32:49.6716022Z 
+2026-10-30T17:32:49.6716471Z   git switch -
+2026-10-30T17:32:49.6717061Z 
+2026-10-30T17:32:49.6718119Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-30T17:32:49.6719582Z 
+2026-10-30T17:32:49.6720754Z HEAD is now at fed9ac4 fix(ci): Gitee 命名空间是 nan-liGit（不是 Y-NanLi）+ 加仓库预检
+2026-10-30T17:32:49.6749544Z ##[endgroup]
+2026-10-30T17:32:49.6768041Z [command]/usr/bin/git log -1 --format=%H
+2026-10-30T17:32:49.6795459Z fed9ac48771f2e6909bc3505a8503b3925e21234
+2026-10-30T17:32:49.7137419Z ##[group]Run actions/download-artifact@v4
+2026-10-30T17:32:49.7138644Z with:
+2026-10-30T17:32:49.7139757Z   name: DP-PXE-windows-amd64
+2026-10-30T17:32:49.7141162Z   path: dist
+2026-10-30T17:32:49.7142339Z   merge-multiple: false
+2026-10-30T17:32:49.7143625Z   repository: Y-NanLi/DPPXE
+2026-10-30T17:32:49.7144580Z   run-id: 41099526901
+2026-10-30T17:32:49.7145714Z env:
+2026-10-30T17:32:49.7146566Z   GITEE_OWNER: nan-liGit
+2026-10-30T17:32:49.7148105Z   GITEE_REPO: DPPXE
+2026-10-30T17:32:49.7150000Z   GITEE_TOKEN: ***
+2026-10-30T17:32:49.7151381Z   TAG: v2.0
+2026-10-30T17:32:49.7152375Z ##[endgroup]
+2026-10-30T17:32:49.8800889Z Downloading single artifact
+2026-10-30T17:32:49.9000609Z (node:2370) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T17:32:49.9003534Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T17:32:50.1693061Z Preparing to download the following artifacts:
+2026-10-30T17:32:50.1695042Z - DP-PXE-windows-amd64 (ID: 12998025990, Size: 11785209, Expected Digest: sha256:f3194ecfb378a2a2ca237ab4de11007d1ae7615b2f4c745a248929d01f451b74)
+2026-10-30T17:32:50.4244678Z Redirecting to blob download url: https://productionresultssa17.blob.core.windows.net/actions-results/b925e966-c905-8df8-bb21-efc7017defd4/workflow-job-run-93136d62-a7f7-549a-8282-1175cac4a1ae/artifacts/94b7f86881f1ccaaba4866046cd2ca8ba384b48d2e98079305d91c2d754998a2.zip
+2026-10-30T17:32:50.4248037Z Starting download of artifact to: /home/runner/work/DPPXE/DPPXE/dist
+2026-10-30T17:32:50.7229919Z (node:2370) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+2026-10-30T17:32:51.7013411Z SHA256 digest of downloaded artifact is f3194ecfb378a2a2ca237ab4de11007d1ae7615b2f4c745a248929d01f451b74
+2026-10-30T17:32:51.7015071Z Artifact download completed successfully.
+2026-10-30T17:32:51.7016215Z Total of 1 artifact(s) downloaded
+2026-10-30T17:32:51.7021877Z Download artifact has finished successfully
+2026-10-30T17:32:51.7311667Z ##[group]Run git archive --format=zip -o netboot.zip HEAD netboot ':(exclude)**/*.wim'
+2026-10-30T17:32:51.7312372Z [36;1mgit archive --format=zip -o netboot.zip HEAD netboot ':(exclude)**/*.wim'[0m
+2026-10-30T17:32:51.7312962Z [36;1mgit archive --format=zip -o AutoCommand.zip HEAD AutoCommand[0m
+2026-10-30T17:32:51.7313413Z [36;1mls -lh dist/*.exe netboot.zip AutoCommand.zip[0m
+2026-10-30T17:32:51.7349113Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-30T17:32:51.7349488Z env:
+2026-10-30T17:32:51.7349694Z   GITEE_OWNER: nan-liGit
+2026-10-30T17:32:51.7349957Z   GITEE_REPO: DPPXE
+2026-10-30T17:32:51.7350326Z   GITEE_TOKEN: ***
+2026-10-30T17:32:51.7350562Z   TAG: v2.0
+2026-10-30T17:32:51.7350791Z ##[endgroup]
+2026-10-30T17:32:52.2633015Z -rw-r--r-- 1 runner runner  878 Oct 30 17:32 AutoCommand.zip
+2026-10-30T17:32:52.2633867Z -rw-r--r-- 1 runner runner  13M Oct 30 17:32 dist/DP-PXE.exe
+2026-10-30T17:32:52.2634728Z -rw-r--r-- 1 runner runner  15M Oct 30 17:32 dist/DP-PXEClient.exe
+2026-10-30T17:32:52.2635686Z -rw-r--r-- 1 runner runner 5.2M Oct 30 17:32 netboot.zip
+2026-10-30T17:32:52.2676113Z ##[group]Run set -euo pipefail
+2026-10-30T17:32:52.2676555Z [36;1mset -euo pipefail[0m
+2026-10-30T17:32:52.2677061Z [36;1m[0m
+2026-10-30T17:32:52.2677289Z [36;1mif [ -z "${GITEE_TOKEN:-}" ]; then[0m
+2026-10-30T17:32:52.2677735Z [36;1m  echo "::warning::未配置 GITEE_TOKEN，跳过 Gitee 发版（GitHub 侧已正常发布）"[0m
+2026-10-30T17:32:52.2678118Z [36;1m  exit 0[0m
+2026-10-30T17:32:52.2678332Z [36;1mfi[0m
+2026-10-30T17:32:52.2678522Z [36;1m[0m
+2026-10-30T17:32:52.2678844Z [36;1mAPI="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"[0m
+2026-10-30T17:32:52.2679390Z [36;1mASSETS="DP-PXE.exe DP-PXEClient.exe netboot.zip AutoCommand.zip"[0m
+2026-10-30T17:32:52.2679803Z [36;1m[0m
+2026-10-30T17:32:52.2680004Z [36;1mecho "== 预检：确认仓库与令牌可用 =="[0m
+2026-10-30T17:32:52.2680349Z [36;1mrc=$(curl -sS -o /dev/null -w '%{http_code}' -G "${API}" \[0m
+2026-10-30T17:32:52.2680770Z [36;1m      --data-urlencode "access_token=${GITEE_TOKEN}")[0m
+2026-10-30T17:32:52.2681151Z [36;1mif [ "$rc" != "200" ]; then[0m
+2026-10-30T17:32:52.2681775Z [36;1m  echo "::error::访问 ${GITEE_OWNER}/${GITEE_REPO} 失败（HTTP ${rc}）。请检查：1) GITEE_OWNER/GITEE_REPO 是否正确（Gitee 命名空间与 GitHub 不同）；2) 令牌是否勾了 projects 权限"[0m
+2026-10-30T17:32:52.2682402Z [36;1m  exit 1[0m
+2026-10-30T17:32:52.2682612Z [36;1mfi[0m
+2026-10-30T17:32:52.2682846Z [36;1mecho "   OK ${GITEE_OWNER}/${GITEE_REPO}"[0m
+2026-10-30T17:32:52.2683137Z [36;1m[0m
+2026-10-30T17:32:52.2683776Z [36;1mNOTES="$(printf 'DP-PXE %s 自动构建发布\n\n- 提交：%s\n- GitHub Release：https://github.com/%s/releases/tag/%s\n- 详细变更见仓库 更新记录.md\n- PE 镜像 win11x64.WIM 体积超限，不在产物内，需自备' \[0m
+2026-10-30T17:32:52.2684531Z [36;1m  "$TAG" "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" "$TAG")"[0m
+2026-10-30T17:32:52.2684856Z [36;1m[0m
+2026-10-30T17:32:52.2685087Z [36;1mecho "== 查找 tag ${TAG} 是否已有 Release =="[0m
+2026-10-30T17:32:52.2685846Z [36;1mresp=$(curl -sS -w '\n%{http_code}' -G "${API}/releases/tags/${TAG}" \[0m
+2026-10-30T17:32:52.2686345Z [36;1m        --data-urlencode "access_token=${GITEE_TOKEN}")[0m
+2026-10-30T17:32:52.2686722Z [36;1mcode=$(printf '%s' "$resp" | tail -n1)[0m
+2026-10-30T17:32:52.2687055Z [36;1mbody=$(printf '%s' "$resp" | sed '$d')[0m
+2026-10-30T17:32:52.2687332Z [36;1m[0m
+2026-10-30T17:32:52.2687537Z [36;1mif [ "$code" = "200" ]; then[0m
+2026-10-30T17:32:52.2687849Z [36;1m  RID=$(printf '%s' "$body" | jq -r '.id')[0m
+2026-10-30T17:32:52.2688179Z [36;1m  echo "已存在 Release id=${RID}，更新标题与说明"[0m
+2026-10-30T17:32:52.2688521Z [36;1m  curl -sS -X PATCH "${API}/releases/${RID}" \[0m
+2026-10-30T17:32:52.2688908Z [36;1m    -H 'Content-Type: application/json;charset=UTF-8' \[0m
+2026-10-30T17:32:52.2689445Z [36;1m    -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \[0m
+2026-10-30T17:32:52.2690108Z [36;1m          '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null[0m
+2026-10-30T17:32:52.2690558Z [36;1m[0m
+2026-10-30T17:32:52.2690771Z [36;1m  echo "== 删除同名旧附件（避免重名上传失败）=="[0m
+2026-10-30T17:32:52.2691125Z [36;1m  curl -sS -G "${API}/releases/${RID}/attach_files" \[0m
+2026-10-30T17:32:52.2691530Z [36;1m       --data-urlencode "access_token=${GITEE_TOKEN}" \[0m
+2026-10-30T17:32:52.2691934Z [36;1m    | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do[0m
+2026-10-30T17:32:52.2692292Z [36;1m        for want in $ASSETS; do[0m
+2026-10-30T17:32:52.2692587Z [36;1m          if [ "$aname" = "$want" ]; then[0m
+2026-10-30T17:32:52.2692897Z [36;1m            echo "  删除 $aname (id=$aid)"[0m
+2026-10-30T17:32:52.2693296Z [36;1m            curl -sS -X DELETE "${API}/releases/${RID}/attach_files/${aid}" \[0m
+2026-10-30T17:32:52.2693813Z [36;1m                 --data-urlencode "access_token=${GITEE_TOKEN}" > /dev/null || true[0m
+2026-10-30T17:32:52.2694214Z [36;1m          fi[0m
+2026-10-30T17:32:52.2694452Z [36;1m        done[0m
+2026-10-30T17:32:52.2694664Z [36;1m      done[0m
+2026-10-30T17:32:52.2694873Z [36;1melse[0m
+2026-10-30T17:32:52.2695293Z [36;1m  echo "未找到（HTTP ${code}），创建 Release"[0m
+2026-10-30T17:32:52.2695813Z [36;1m  created=$(curl -sS -X POST "${API}/releases" \[0m
+2026-10-30T17:32:52.2696334Z [36;1m    -H 'Content-Type: application/json;charset=UTF-8' \[0m
+2026-10-30T17:32:52.2696862Z [36;1m    -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \[0m
+2026-10-30T17:32:52.2697468Z [36;1m          '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')")[0m
+2026-10-30T17:32:52.2697949Z [36;1m  RID=$(printf '%s' "$created" | jq -r '.id // empty')[0m
+2026-10-30T17:32:52.2698287Z [36;1m  if [ -z "$RID" ]; then[0m
+2026-10-30T17:32:52.2698672Z [36;1m    echo "::error::创建 Gitee Release 失败：$(printf '%s' "$created" | head -c 500)"[0m
+2026-10-30T17:32:52.2699079Z [36;1m    exit 1[0m
+2026-10-30T17:32:52.2699292Z [36;1m  fi[0m
+2026-10-30T17:32:52.2699505Z [36;1m  echo "新建 Release id=${RID}"[0m
+2026-10-30T17:32:52.2699786Z [36;1mfi[0m
+2026-10-30T17:32:52.2700028Z [36;1m[0m
+2026-10-30T17:32:52.2700228Z [36;1mecho "== 上传附件 =="[0m
+2026-10-30T17:32:52.2700621Z [36;1mfor f in dist/DP-PXE.exe dist/DP-PXEClient.exe netboot.zip AutoCommand.zip; do[0m
+2026-10-30T17:32:52.2701070Z [36;1m  name=$(basename "$f")[0m
+2026-10-30T17:32:52.2701324Z [36;1m  echo "  上传 ${name}"[0m
+2026-10-30T17:32:52.2701659Z [36;1m  out=$(curl -sS -X POST "${API}/releases/${RID}/attach_files" \[0m
+2026-10-30T17:32:52.2702063Z [36;1m          -F "access_token=${GITEE_TOKEN}" \[0m
+2026-10-30T17:32:52.2702366Z [36;1m          -F "file=@${f}")[0m
+2026-10-30T17:32:52.2702698Z [36;1m  if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then[0m
+2026-10-30T17:32:52.2703103Z [36;1m    echo "    OK $(printf '%s' "$out" | jq -r '.name')"[0m
+2026-10-30T17:32:52.2703418Z [36;1m  else[0m
+2026-10-30T17:32:52.2703718Z [36;1m    echo "::error::上传 ${name} 失败：$(printf '%s' "$out" | head -c 300)"[0m
+2026-10-30T17:32:52.2704081Z [36;1m    exit 1[0m
+2026-10-30T17:32:52.2704286Z [36;1m  fi[0m
+2026-10-30T17:32:52.2704501Z [36;1mdone[0m
+2026-10-30T17:32:52.2704689Z [36;1m[0m
+2026-10-30T17:32:52.2705046Z [36;1mecho "完成：https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}/releases/tag/${TAG}"[0m
+2026-10-30T17:32:52.2736232Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-30T17:32:52.2736592Z env:
+2026-10-30T17:32:52.2736802Z   GITEE_OWNER: nan-liGit
+2026-10-30T17:32:52.2737048Z   GITEE_REPO: DPPXE
+2026-10-30T17:32:52.2737389Z   GITEE_TOKEN: ***
+2026-10-30T17:32:52.2737605Z   TAG: v2.0
+2026-10-30T17:32:52.2737805Z ##[endgroup]
+2026-10-30T17:32:52.2786860Z == 预检：确认仓库与令牌可用 ==
+2026-10-30T17:33:55.6682925Z curl: (35) Recv failure: Connection reset by peer
+2026-10-30T17:33:55.6714996Z ##[error]Process completed with exit code 35.
+2026-10-30T17:33:55.6861551Z Post job cleanup.
+2026-10-30T17:33:55.7761042Z [command]/usr/bin/git version
+2026-10-30T17:33:55.7811181Z git version 2.56.0
+2026-10-30T17:33:55.7857990Z Temporarily overriding HOME='/home/runner/work/_temp/c3d785d5-84e7-4b33-afe2-363fa588e392' before making global git config changes
+2026-10-30T17:33:55.7859473Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T17:33:55.7863843Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/DPPXE/DPPXE
+2026-10-30T17:33:55.7909866Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T17:33:55.7953608Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-30T17:33:55.8278183Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T17:33:55.8309505Z http.https://github.com/.extraheader
+2026-10-30T17:33:55.8323449Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-30T17:33:55.8367231Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-30T17:33:55.8706798Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T17:33:55.8745109Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-30T17:33:55.9199172Z Cleaning up orphan processes
+2026-10-30T17:33:55.9607190Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

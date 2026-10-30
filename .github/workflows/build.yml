@@ -177,11 +177,19 @@ jobs:
           API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
           ASSETS="DP-PXE.exe DP-PXEClient.exe netboot.zip AutoCommand.zip"
 
+          # gitee.com 从 GitHub runner（Azure）跨境访问约 4~9 秒，偶发 Connection reset，
+          # 所以统一加重试；HTTP/1.1 + IPv4 更稳（实测比默认 HTTP/2 少出错）。
+          CURL="curl -sS --http1.1 -4 --connect-timeout 15 --max-time 120 --retry 5 --retry-delay 5 --retry-connrefused"
+
           echo "== 预检：确认仓库与令牌可用 =="
-          rc=$(curl -sS -o /dev/null -w '%{http_code}' -G "${API}" \
-                --data-urlencode "access_token=${GITEE_TOKEN}")
+          rc=$($CURL -o /dev/null -w '%{http_code}' -G "${API}" \
+                --data-urlencode "access_token=${GITEE_TOKEN}" || echo "000")
+          if [ "$rc" = "000" ]; then
+            echo "::error::连不上 gitee.com（重试后仍失败）。已实测 GitHub runner 可访问 gitee.com，属偶发跨境抖动，稍后重跑本作业即可"
+            exit 1
+          fi
           if [ "$rc" != "200" ]; then
-            echo "::error::访问 ${GITEE_OWNER}/${GITEE_REPO} 失败（HTTP ${rc}）。请检查：1) GITEE_OWNER/GITEE_REPO 是否正确（Gitee 命名空间与 GitHub 不同）；2) 令牌是否勾了 projects 权限"
+            echo "::error::访问 ${GITEE_OWNER}/${GITEE_REPO} 返回 HTTP ${rc}。请检查：1) GITEE_OWNER/GITEE_REPO 是否正确（Gitee 命名空间 nan-liGit 与 GitHub 的 Y-NanLi 不同）；2) 令牌是否勾了 projects 权限"
             exit 1
           fi
           echo "   OK ${GITEE_OWNER}/${GITEE_REPO}"
@@ -190,7 +198,7 @@ jobs:
             "$TAG" "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" "$TAG")"
 
           echo "== 查找 tag ${TAG} 是否已有 Release =="
-          resp=$(curl -sS -w '\n%{http_code}' -G "${API}/releases/tags/${TAG}" \
+          resp=$($CURL -w '\n%{http_code}' -G "${API}/releases/tags/${TAG}" \
                   --data-urlencode "access_token=${GITEE_TOKEN}")
           code=$(printf '%s' "$resp" | tail -n1)
           body=$(printf '%s' "$resp" | sed '$d')
@@ -198,26 +206,26 @@ jobs:
           if [ "$code" = "200" ]; then
             RID=$(printf '%s' "$body" | jq -r '.id')
             echo "已存在 Release id=${RID}，更新标题与说明"
-            curl -sS -X PATCH "${API}/releases/${RID}" \
+            $CURL -X PATCH "${API}/releases/${RID}" \
               -H 'Content-Type: application/json;charset=UTF-8' \
               -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
                     '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')" > /dev/null
 
             echo "== 删除同名旧附件（避免重名上传失败）=="
-            curl -sS -G "${API}/releases/${RID}/attach_files" \
+            $CURL -G "${API}/releases/${RID}/attach_files" \
                  --data-urlencode "access_token=${GITEE_TOKEN}" \
               | jq -r '.[] | "\(.id) \(.name)"' | while read -r aid aname; do
                   for want in $ASSETS; do
                     if [ "$aname" = "$want" ]; then
                       echo "  删除 $aname (id=$aid)"
-                      curl -sS -X DELETE "${API}/releases/${RID}/attach_files/${aid}" \
+                      $CURL -X DELETE "${API}/releases/${RID}/attach_files/${aid}" \
                            --data-urlencode "access_token=${GITEE_TOKEN}" > /dev/null || true
                     fi
                   done
                 done
           else
             echo "未找到（HTTP ${code}），创建 Release"
-            created=$(curl -sS -X POST "${API}/releases" \
+            created=$($CURL -X POST "${API}/releases" \
               -H 'Content-Type: application/json;charset=UTF-8' \
               -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" --arg body "$NOTES" \
                     '{access_token:$t,tag_name:$tag,name:$name,body:$body,prerelease:false}')")
@@ -233,7 +241,7 @@ jobs:
           for f in dist/DP-PXE.exe dist/DP-PXEClient.exe netboot.zip AutoCommand.zip; do
             name=$(basename "$f")
             echo "  上传 ${name}"
-            out=$(curl -sS -X POST "${API}/releases/${RID}/attach_files" \
+            out=$($CURL -X POST "${API}/releases/${RID}/attach_files" \
                     -F "access_token=${GITEE_TOKEN}" \
                     -F "file=@${f}")
             if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then

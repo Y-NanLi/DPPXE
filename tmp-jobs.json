@@ -1,0 +1,321 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 124213938477,
+      "run_id": 41099526901,
+      "workflow_name": "Build DP-PXE",
+      "head_branch": "v2.0",
+      "run_url": "https://api.github.com/repos/Y-NanLi/DPPXE/actions/runs/41099526901",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVbOAHM8AAAAc67pJLQ",
+      "head_sha": "fed9ac48771f2e6909bc3505a8503b3925e21234",
+      "url": "https://api.github.com/repos/Y-NanLi/DPPXE/actions/jobs/124213938477",
+      "html_url": "https://github.com/Y-NanLi/DPPXE/actions/runs/41099526901/job/124213938477",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-30T17:31:14Z",
+      "started_at": "2026-10-30T17:31:16Z",
+      "completed_at": "2026-10-30T17:32:43Z",
+      "name": "Build (windows/amd64)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-30T17:31:16Z",
+          "completed_at": "2026-10-30T17:31:18Z"
+        },
+        {
+          "name": "检出代码",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-30T17:31:18Z",
+          "completed_at": "2026-10-30T17:31:24Z"
+        },
+        {
+          "name": "配置 Go 工具链",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-30T17:31:24Z",
+          "completed_at": "2026-10-30T17:32:06Z"
+        },
+        {
+          "name": "安装 MinGW-w64（desktop GUI 编译依赖 CGO/gcc）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-30T17:32:06Z",
+          "completed_at": "2026-10-30T17:32:32Z"
+        },
+        {
+          "name": "工具链自检",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-30T17:32:32Z",
+          "completed_at": "2026-10-30T17:32:32Z"
+        },
+        {
+          "name": "拉取 / 整理依赖",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-30T17:32:32Z",
+          "completed_at": "2026-10-30T17:32:32Z"
+        },
+        {
+          "name": "静态检查",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-30T17:32:32Z",
+          "completed_at": "2026-10-30T17:32:33Z"
+        },
+        {
+          "name": "编译图形界面版 DP-PXE.exe",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-30T17:32:33Z",
+          "completed_at": "2026-10-30T17:32:34Z"
+        },
+        {
+          "name": "编译被控端 DP-PXEClient.exe（含 clientgui：PE 原生界面 + 已装系统 Wails 界面）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-30T17:32:34Z",
+          "completed_at": "2026-10-30T17:32:36Z"
+        },
+        {
+          "name": "自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-30T17:32:36Z",
+          "completed_at": "2026-10-30T17:32:36Z"
+        },
+        {
+          "name": "上传构建产物",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-30T17:32:36Z",
+          "completed_at": "2026-10-30T17:32:39Z"
+        },
+        {
+          "name": "Post 配置 Go 工具链",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-30T17:32:39Z",
+          "completed_at": "2026-10-30T17:32:39Z"
+        },
+        {
+          "name": "Post 检出代码",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-30T17:32:39Z",
+          "completed_at": "2026-10-30T17:32:41Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-30T17:32:41Z",
+          "completed_at": "2026-10-30T17:32:41Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Y-NanLi/DPPXE/check-runs/124213938477",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000003506,
+      "runner_name": "GitHub Actions 1000003506",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 124214680548,
+      "run_id": 41099526901,
+      "workflow_name": "Build DP-PXE",
+      "head_branch": "v2.0",
+      "run_url": "https://api.github.com/repos/Y-NanLi/DPPXE/actions/runs/41099526901",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVbOAHM8AAAAc68Wb5A",
+      "head_sha": "fed9ac48771f2e6909bc3505a8503b3925e21234",
+      "url": "https://api.github.com/repos/Y-NanLi/DPPXE/actions/jobs/124214680548",
+      "html_url": "https://github.com/Y-NanLi/DPPXE/actions/runs/41099526901/job/124214680548",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-30T17:32:44Z",
+      "started_at": "2026-10-30T17:32:46Z",
+      "completed_at": "2026-10-30T17:33:58Z",
+      "name": "Gitee Release",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-30T17:32:47Z",
+          "completed_at": "2026-10-30T17:32:48Z"
+        },
+        {
+          "name": "检出代码",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-30T17:32:48Z",
+          "completed_at": "2026-10-30T17:32:49Z"
+        },
+        {
+          "name": "下载构建产物",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-30T17:32:49Z",
+          "completed_at": "2026-10-30T17:32:51Z"
+        },
+        {
+          "name": "打包 netboot 与 AutoCommand",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-30T17:32:51Z",
+          "completed_at": "2026-10-30T17:32:52Z"
+        },
+        {
+          "name": "推送到 Gitee 发行版",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-10-30T17:32:52Z",
+          "completed_at": "2026-10-30T17:33:55Z"
+        },
+        {
+          "name": "Post 检出代码",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-30T17:33:55Z",
+          "completed_at": "2026-10-30T17:33:55Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-30T17:33:55Z",
+          "completed_at": "2026-10-30T17:33:55Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Y-NanLi/DPPXE/check-runs/124214680548",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000003507,
+      "runner_name": "GitHub Actions 1000003507",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 124214680769,
+      "run_id": 41099526901,
+      "workflow_name": "Build DP-PXE",
+      "head_branch": "v2.0",
+      "run_url": "https://api.github.com/repos/Y-NanLi/DPPXE/actions/runs/41099526901",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVbOAHM8AAAAc68WcwQ",
+      "head_sha": "fed9ac48771f2e6909bc3505a8503b3925e21234",
+      "url": "https://api.github.com/repos/Y-NanLi/DPPXE/actions/jobs/124214680769",
+      "html_url": "https://github.com/Y-NanLi/DPPXE/actions/runs/41099526901/job/124214680769",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-30T17:32:44Z",
+      "started_at": "2026-10-30T17:32:46Z",
+      "completed_at": "2026-10-30T17:32:58Z",
+      "name": "Release",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-30T17:32:47Z",
+          "completed_at": "2026-10-30T17:32:48Z"
+        },
+        {
+          "name": "检出代码",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-30T17:32:48Z",
+          "completed_at": "2026-10-30T17:32:50Z"
+        },
+        {
+          "name": "下载构建产物",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-30T17:32:50Z",
+          "completed_at": "2026-10-30T17:32:51Z"
+        },
+        {
+          "name": "打包 netboot 与 AutoCommand（显式过滤 *.wim，排除 585MB 的 PE 镜像）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-30T17:32:51Z",
+          "completed_at": "2026-10-30T17:32:52Z"
+        },
+        {
+          "name": "发布正式版（tag v*，自动生成 Release Notes）",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-30T17:32:52Z",
+          "completed_at": "2026-10-30T17:32:56Z"
+        },
+        {
+          "name": "发布滚动最新版（push 到 main → prerelease）",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-30T17:32:56Z",
+          "completed_at": "2026-10-30T17:32:56Z"
+        },
+        {
+          "name": "Post 检出代码",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-30T17:32:56Z",
+          "completed_at": "2026-10-30T17:32:56Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-30T17:32:56Z",
+          "completed_at": "2026-10-30T17:32:56Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/Y-NanLi/DPPXE/check-runs/124214680769",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000003508,
+      "runner_name": "GitHub Actions 1000003508",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
