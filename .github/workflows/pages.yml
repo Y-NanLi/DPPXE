@@ -1,0 +1,40 @@
+name: Deploy WebUI to Pages
+
+on:
+  push:
+    branches: ["main"]  # 如果你的默认分支叫 master，请改这里
+    paths:
+      - "internal/webui/dist/**"  # 只在 dist 目录有变动时触发，避免无意义的部署
+  workflow_dispatch:  # 允许在 Actions 页面手动点击运行
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 这里的关键：指定你要发布的文件夹路径
+          path: 'internal/webui/dist' 
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
