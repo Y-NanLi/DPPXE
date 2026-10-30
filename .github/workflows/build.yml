@@ -54,10 +54,14 @@ jobs:
         run: |
           go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
 
-      - name: 编译控制台版 DP-PXEClient.exe（被控端 / 模拟器）
+      - name: 编译被控端 DP-PXEClient.exe（含 clientgui：PE 原生界面 + 已装系统 Wails 界面）
         shell: bash
         run: |
-          go build -trimpath -ldflags "-s -w" -o bin/DP-PXEClient.exe .
+          # 两个 tags 都不能少：
+          #   desktop,production → Wails runtime 不是空壳（漏了会弹 build tags 模态框）
+          #   clientgui          → 编入 PE 原生界面（walk），漏了 PE 里只剩控制台
+          # -H windowsgui → 双击不弹黑框（--nogui 时程序自己 AttachConsole）
+          go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXEClient.exe .
 
       - name: 自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）
         shell: bash
