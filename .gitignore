@@ -1,6 +1,7 @@
 bin/
 logs/
 tmp-*/
+tmp-*
 *.exe
 
 # netboot: 大体积 PE 镜像（~590MB，超 GitHub 单文件 100MB 上限）不入库，仅本地保留
