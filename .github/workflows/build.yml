@@ -223,18 +223,35 @@ jobs:
 
           if [ -z "$RID" ]; then
             echo "该 tag 尚无 Release（响应 $(printf '%s' "$body" | head -c 40)），创建新的"
-            # Gitee 创建 Release 必须带 target_commitish（否则报 target_commitish is missing）
-            created=$($CURL -X POST "${API}/releases" \
-              -H 'Content-Type: application/json;charset=UTF-8' \
-              -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" \
-                    --arg body "$NOTES" --arg tc "${GITHUB_SHA}" \
-                    '{access_token:$t,tag_name:$tag,name:$name,body:$body,target_commitish:$tc,prerelease:false}')" || true)
-            RID=$(printf '%s' "$created" | jq -r 'if type=="object" then (.id // empty) else empty end' 2>/dev/null || true)
-            case "$RID" in
-              ''|*[!0-9]*)
-                echo "::error::创建 Gitee Release 失败，响应片段：$(printf '%s' "$created" | head -c 500)"
-                exit 1 ;;
-            esac
+            # Gitee 创建 Release 必须带 target_commitish（否则报 target_commitish is missing）。
+            # 另外 Gitee 侧是 GitHub 的镜像，tag/提交可能还没同步过来，会报「创建标签失败：vX.Y」，
+            # 所以这里等一会儿重试，最多 10 次 × 60 秒。
+            attempt=0
+            while [ "$attempt" -lt 10 ]; do
+              attempt=$((attempt + 1))
+              created=$($CURL -X POST "${API}/releases" \
+                -H 'Content-Type: application/json;charset=UTF-8' \
+                -d "$(jq -n --arg t "$GITEE_TOKEN" --arg tag "$TAG" --arg name "DP-PXE ${TAG}" \
+                      --arg body "$NOTES" --arg tc "${GITHUB_SHA}" \
+                      '{access_token:$t,tag_name:$tag,name:$name,body:$body,target_commitish:$tc,prerelease:false}')" || true)
+              RID=$(printf '%s' "$created" | jq -r 'if type=="object" then (.id // empty) else empty end' 2>/dev/null || true)
+              case "$RID" in ''|*[!0-9]*) RID="" ;; esac
+              [ -n "$RID" ] && break
+
+              snippet=$(printf '%s' "$created" | head -c 200)
+              echo "  第 ${attempt}/10 次创建失败：${snippet}"
+              if printf '%s' "$snippet" | grep -q "创建标签失败"; then
+                echo "  → Gitee 镜像尚未同步到 ${TAG}，等 60 秒后重试（共最多 10 分钟）"
+                sleep 60
+                continue
+              fi
+              break   # 其它错误（权限/参数）不重试
+            done
+
+            if [ -z "$RID" ]; then
+              echo "::error::创建 Gitee Release 失败。若原因是「创建标签失败：${TAG}」，说明 Gitee 镜像还没同步该标签——去 Gitee 仓库点一次「同步」后，重新运行本作业即可"
+              exit 1
+            fi
             echo "新建 Release id=${RID}"
           else
             echo "已存在 Release id=${RID}，更新标题与说明"
