@@ -184,6 +184,10 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
    - **发版前必查 `.github/workflows/build.yml` 里两条 `go build` 的 tags 与 `build.bat` 一致**
      （控制端不带 `clientgui`、被控端带 `clientgui`）。v2.0 曾因为 CI 里被控端漏了所有 tags，
      发出去的 `DP-PXEClient.exe` 既弹 build tags 模态框、也没有 PE 原生界面（v1.0–v1.5 同样受影响）。
+   - **Gitee 镜像另有 `.workflow/release-pipeline.yml`**（Gitee Go 流水线），只在推送 `v*` 标签时触发。
+     注意它的语法与 GitHub Actions 完全不同：阶段是 `- name:` 直接列（不是 `- stage:`）、
+     发版插件是 `release@gitee`（不是 `publish@gitee-release`）、没有 `${GITEE_TAG}` 变量
+     （Tag 名在构建阶段算好后写进 `GITEE_PARAMS` 传给发版步骤）。
 
 ---
 

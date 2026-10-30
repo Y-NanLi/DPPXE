@@ -1,48 +1,105 @@
-version: '1.0'
+version: 1.0
 name: release-pipeline
-displayName: DP-PXE 自动发版流水线
+displayName: DP-PXE 发版（构建 Windows 产物 + Gitee Release）
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 触发：只在推送 v* 标签时跑（例如 v2.0）。
+#
+# 旧版为什么「构建不出来也不发行」，逐条对应下面这些错误：
+#   1. stages 结构写错：真实语法是 `- name: xxx` 直接作为阶段项，
+#      旧版多套了一层 `- stage:`，Gitee 解析不到阶段 → 流水线起不来。
+#   2. 步骤名不存在：`publish@gitee-release` 不是真实插件，正确的是 `release@gitee`。
+#   3. `dependsOn` 不是 Gitee 字段：阶段间靠 `artifacts` / `upstreamArtifact` 传递产物。
+#   4. `${GITEE_TAG}` 这个变量不存在（官方系统变量里没有 Tag 名），
+#      改为在构建阶段算出 Tag 写进 GITEE_PARAMS，再给发版步骤引用。
+#   5. 构建命令用了 CGO_ENABLED=1 + x86_64-w64-mingw32-gcc，但 golang 镜像里没有 mingw
+#      → 编译直接失败。实测本项目 CGO_ENABLED=0 即可交叉编译出 Windows 产物，
+#      体积与本地一致（控制端 12.65MB / 被控端 14.56MB），所以不再需要 mingw。
+#   6. 被控端编译漏了 build tags（旧版连 desktop,production 都没有）→ 即使编出来也是坏的：
+#      Wails runtime 空壳（一开 GUI 弹 build tags 模态框）、且不含 PE 原生界面（walk）。
+#
+# 想同时让 main 分支也构建（不发版）：建议另建一个 .workflow/build-only.yml，
+# 只保留下面的 stage-build 阶段、不要 stage-release。
+# ─────────────────────────────────────────────────────────────────────────────
 triggers:
   push:
-    # 分支触发：匹配 main 分支
-    branches:
-      precise:
-        - main
-    # Tag 触发：匹配 v 开头的 Tag（如 v1.5, v1.6）
     tags:
       prefix:
         - v
 
-stages:
-  - stage:
-      name: build-and-release
-      displayName: 构建并自动发布
-      steps:
-        # 1. 编译 Windows 二进制
-        - step: build@golang
-          name: build_go
-          displayName: 编译 Go 程序 (Windows amd64)
-          golangVersion: '1.27'
-          commands:
-            - mkdir -p bin
-            - go mod tidy
-            - CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
-            - CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -trimpath -ldflags "-s -w" -o bin/DP-PXEClient.exe .
-          artifacts:
-            - name: BUILD_ARTIFACT
-              path:
-                - bin
+variables:
+  # 产物名 / Release 标题前缀
+  APP_NAME: DP-PXE
 
-        # 2. 自动创建 Gitee Release 并上传 exe 附件
-        - step: publish@gitee-release
-          name: publish_release
-          displayName: 发布 Gitee Release
-          dependsOn: build_go
-          tagName: ${GITEE_TAG}
-          releaseName: "DP-PXE ${GITEE_TAG}"
-          description: "自动构建发布，提交: ${GITEE_COMMIT}"
-          assertFiles:
-            - bin/DP-PXE.exe
-            - bin/DP-PXEClient.exe
-          prerelease: false
-          allowUpdate: true
+stages:
+  # ── 阶段 1：交叉编译出 Windows 产物 ─────────────────────────────────────────
+  - name: stage-build
+    displayName: 构建 Windows 产物
+    strategy: naturally
+    trigger: auto
+    executor: []
+    steps:
+      - step: build@golang
+        name: build_go
+        displayName: 交叉编译 linux → windows/amd64（CGO 关闭，无需 mingw）
+        # 若镜像列表里没有 1.27，可改成较低版本并保留下面的 GOTOOLCHAIN=auto，
+        # Go 会按 go.mod 要求自动下载 1.27.3 工具链。
+        golangVersion: '1.27'
+        commands:
+          - export GOPROXY=https://goproxy.cn,direct
+          - export GOSUMDB=off
+          - export GOTOOLCHAIN=auto
+          - go version
+          - go mod tidy
+          - mkdir -p bin
+          # 控制端：不带 clientgui → 不链接 walk/win，省约 1.9MB
+          - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
+          # 被控端：必须带 clientgui（PE 原生界面）+ desktop,production（Wails runtime）
+          - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXEClient.exe .
+          - ls -lh bin
+          # 算出本次发版用的 Tag：优先取当前提交上的 tag，取不到就回退到 config.AppVersion
+          - 'TAG=$(git describe --tags --exact-match 2>/dev/null || true); if [ -z "$TAG" ]; then VER=$(sed -n ''s/.*AppVersion *= *"\([^"]*\)".*/\1/p'' internal/config/config.go | head -1); TAG="v${VER}"; fi; echo "PKG_TAG=${TAG}" >> GITEE_PARAMS; echo "本次发版 Tag = ${TAG}"'
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - bin
+        caches:
+          - /go/pkg/mod
+        notify: []
+        strategy:
+          retry: '0'
+
+  # ── 阶段 2：创建 Gitee Release 并上传两个 exe ───────────────────────────────
+  - name: stage-release
+    displayName: 发布 Gitee Release
+    strategy: naturally
+    trigger: auto
+    executor: []
+    steps:
+      - step: release@gitee
+        name: release_gitee
+        displayName: Gitee Release
+        # PKG_TAG 来自上一阶段写进 GITEE_PARAMS 的流水线级参数
+        tagName: ${PKG_TAG}
+        releaseName: ${APP_NAME} ${PKG_TAG}
+        description: |
+          ${APP_NAME} ${PKG_TAG} 自动构建发布
+
+          - 提交：${GITEE_COMMIT}
+          - 构建号：${GITEE_PIPELINE_BUILD_NUMBER}
+          - 产物：DP-PXE.exe（控制端，约 12.6MB）、DP-PXEClient.exe（被控端，约 14.6MB，含 PE 原生界面）
+          - 详细变更见仓库 `更新记录.md` 中 ${PKG_TAG} 章节
+          - PE 镜像（win11x64.WIM）体积超限，不在产物内，需自备
+        # 上游构建产物标识，必须与 stage-build 里 artifacts 的 name 一致
+        upstreamArtifact:
+          - BUILD_ARTIFACT
+        # 相对源码根目录的路径（先用 ls 确认文件存在）
+        assertFiles:
+          - bin/DP-PXE.exe
+          - bin/DP-PXEClient.exe
+        prerelease: false
+        # 同一 Tag 重复发版时覆盖旧 Release（重新打标签重发时有用）
+        allowUpdate: true
+        notify: []
+        strategy:
+          retry: '0'
