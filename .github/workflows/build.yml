@@ -132,7 +132,7 @@ jobs:
   #
   # 需要的配置（GitHub 仓库 → Settings → Secrets and variables → Actions）：
   #   Secret  GITEE_TOKEN   必填，Gitee 私人令牌（权限勾 projects）
-  #   Variable GITEE_OWNER  选填，默认 Y-NanLi
+  #   Variable GITEE_OWNER  选填，默认 nan-liGit（Gitee 命名空间与 GitHub 的 Y-NanLi 不同！）
   #   Variable GITEE_REPO   选填，默认 DPPXE
   # 没配 GITEE_TOKEN 时本作业只打警告并跳过，不影响 GitHub 侧的发布。
   # ───────────────────────────────────────────────────────────────────────────
@@ -142,7 +142,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     env:
-      GITEE_OWNER: ${{ vars.GITEE_OWNER || 'Y-NanLi' }}
+      # 注意：Gitee 侧仓库是 nan-liGit/DPPXE，GitHub 侧是 Y-NanLi/DPPXE，命名空间不一样
+      GITEE_OWNER: ${{ vars.GITEE_OWNER || 'nan-liGit' }}
       GITEE_REPO: ${{ vars.GITEE_REPO || 'DPPXE' }}
       GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
       TAG: ${{ github.ref_name }}
@@ -175,6 +176,15 @@ jobs:
 
           API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
           ASSETS="DP-PXE.exe DP-PXEClient.exe netboot.zip AutoCommand.zip"
+
+          echo "== 预检：确认仓库与令牌可用 =="
+          rc=$(curl -sS -o /dev/null -w '%{http_code}' -G "${API}" \
+                --data-urlencode "access_token=${GITEE_TOKEN}")
+          if [ "$rc" != "200" ]; then
+            echo "::error::访问 ${GITEE_OWNER}/${GITEE_REPO} 失败（HTTP ${rc}）。请检查：1) GITEE_OWNER/GITEE_REPO 是否正确（Gitee 命名空间与 GitHub 不同）；2) 令牌是否勾了 projects 权限"
+            exit 1
+          fi
+          echo "   OK ${GITEE_OWNER}/${GITEE_REPO}"
 
           NOTES="$(printf 'DP-PXE %s 自动构建发布\n\n- 提交：%s\n- GitHub Release：https://github.com/%s/releases/tag/%s\n- 详细变更见仓库 更新记录.md\n- PE 镜像 win11x64.WIM 体积超限，不在产物内，需自备' \
             "$TAG" "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" "$TAG")"
