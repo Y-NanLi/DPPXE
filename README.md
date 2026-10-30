@@ -2,10 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.5-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
-
-# DPPXE
-
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求
 [![WebUI Demo](https://img.shields.io/badge/WebUI-在线演示-blue?style=for-the-badge&logo=github)](https://y-nanli.github.io/DPPXE/)
 
 > 
