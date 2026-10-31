@@ -85,14 +85,22 @@ jobs:
 
       - name: 自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）
         shell: bash
-        run: timeout 180 ./dist/DP-PXEClient.exe --selftest
+        run: |
+          set +e
+          timeout 180 ./dist/DP-PXEClient.exe --selftest
+          rc=$?
+          # 客户端会在 exe 旁边写 logs/ 目录，别让它混进产物
+          rm -rf dist/logs
+          exit $rc
 
       - name: 上传构建产物
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: DP-PXE-builds
-          path: dist/
+          path: |
+            dist/*.exe
+            dist/dp-pxe-linux-*
 
   release:
     name: Release
@@ -125,7 +133,7 @@ jobs:
           gh release create "$tag" \
             --title "DP-PXE $tag" \
             --generate-notes \
-            dist/* netboot.zip AutoCommand.zip
+            dist/*.exe dist/dp-pxe-linux-amd64 dist/dp-pxe-linux-arm64 netboot.zip AutoCommand.zip
 
       - name: 发布滚动最新版（push 到 main → prerelease）
         if: github.ref == 'refs/heads/main'
@@ -141,7 +149,7 @@ jobs:
             --notes "自动构建于 push 到 main。
           Commit: ${GITHUB_SHA}
           构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            dist/* netboot.zip AutoCommand.zip
+            dist/*.exe dist/dp-pxe-linux-amd64 dist/dp-pxe-linux-arm64 netboot.zip AutoCommand.zip
 
   # ───────────────────────────────────────────────────────────────────────────
   # 把同一个 Release 同步到 Gitee。
@@ -185,7 +193,7 @@ jobs:
         run: |
           git archive --format=zip -o netboot.zip HEAD netboot ':(exclude)**/*.wim'
           git archive --format=zip -o AutoCommand.zip HEAD AutoCommand
-          ls -lh dist/* netboot.zip AutoCommand.zip
+          ls -lh dist/*.exe dist/dp-pxe-linux-amd64 dist/dp-pxe-linux-arm64 netboot.zip AutoCommand.zip
 
       - name: 推送到 Gitee 发行版
         shell: bash
