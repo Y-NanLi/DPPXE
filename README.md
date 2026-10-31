@@ -95,34 +95,40 @@ run.bat        :: 启动图形界面
 test.bat       :: 内置自检（33 项）
 ```
 
-产物：
+产物（x64 / x86 两套，文件名相同，目录不同）：
 
 | 文件 | 子系统 | 用途 |
 | --- | --- | --- |
-| `bin\DP-PXE.exe` | GUI（`-H windowsgui`） | 控制端图形界面，双击即用（约 12.6 MB） |
-| `bin\DP-PXEClient.exe` | GUI + 控制台 | 被控端 / 模拟器 / 无界面服务端（**PE 里用这个**，约 14.6 MB） |
+| `bin\x64\DP-PXE.exe` | GUI（`-H windowsgui`） | 控制端图形界面，双击即用（约 15.1 MB，含 PE 用的 walk 原生界面） |
+| `bin\x64\DP-PXEClient.exe` | GUI + 控制台 | 被控端 / 模拟器 / 无界面服务端（**PE 里用这个**，约 14.6 MB） |
+| `bin\x86\...` | 同上 | 32 位版本（控制端约 14.4 MB / 被控端约 13.9 MB，需要 32 位 WebView2） |
 
-> **手工编译注意**（v2.0 起两个产物 tags 不同，别搞混）：
+> **手工编译注意**（v2.1 起 tags 各不相同，且要编两套架构）：
 > ```bat
-> :: 控制端：不带 clientgui → 不链接 walk/win，省约 1.9MB
-> go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXE.exe .
+> set CGO_ENABLED=0
+> set GOOS=windows
+> :: 控制端：带 servergui → 含 PE 里的 walk 原生界面；不带则退回约 12.6MB 但 PE 里没界面
+> set GOARCH=amd64
+> go build -tags "desktop,production,servergui" -trimpath -ldflags "-s -w -H windowsgui" -o bin\x64\DP-PXE.exe .
 > :: 被控端：带 clientgui → 含 PE 原生界面（walk）
-> go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXEClient.exe .
+> go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin\x64\DP-PXEClient.exe .
+> :: x86 同上，把 GOARCH 换成 386、输出目录换成 bin\x86\
 > ```
 > 漏了 `desktop,production` 会弹「Wails applications will not build without the correct build tags」（模态框，进程不退出）。
+> 资源文件已按架构拆成 `rsrc_amd64.syso` / `rsrc_386.syso`，缺一个就会在链接时报 `unknown relocation type`。
 
 两者是同一份代码，参数不同角色不同：
 
 ```bat
-bin\DP-PXE.exe                                     :: 图形界面
-bin\DP-PXEClient.exe --nogui --root D:\wb\h-go\go\netboot  :: 无界面跑全部服务（服务器 / 调试）
-bin\DP-PXEClient.exe --web --web-port 8788         :: 不开窗口，浏览器里用界面（WebView2 缺失时兜底）
-bin\DP-PXE.exe       --client --gui --server 10.0.0.133  :: 被控端（图形界面）
-bin\DP-PXEClient.exe --client --server 10.0.0.133          :: 被控端（控制台；PE 里请用图形界面，见 4.1.1）
-bin\DP-PXEClient.exe --sim    --server 10.0.0.133  :: 客户端模拟器（只记录不执行）
-bin\DP-PXEClient.exe --selftest                    :: 自检
-bin\DP-PXEClient.exe --client --install --server 10.0.0.133   :: 装成开机自启（SYSTEM）
-bin\DP-PXEClient.exe --client --uninstall
+bin\x64\DP-PXE.exe                                 :: 图形界面
+bin\x64\DP-PXEClient.exe --nogui --root D:\wb\h-go\go\netboot  :: 无界面跑全部服务（服务器 / 调试）
+bin\x64\DP-PXEClient.exe --web --web-port 8788     :: 不开窗口，浏览器里用界面（WebView2 缺失时兜底）
+bin\x64\DP-PXE.exe       --client --gui --server 10.0.0.133  :: 被控端（图形界面）
+bin\x64\DP-PXEClient.exe --client --server 10.0.0.133          :: 被控端（控制台；PE 里请用图形界面，见 4.1.1）
+bin\x64\DP-PXEClient.exe --sim    --server 10.0.0.133  :: 客户端模拟器（只记录不执行）
+bin\x64\DP-PXEClient.exe --selftest                    :: 自检
+bin\x64\DP-PXEClient.exe --client --install --server 10.0.0.133   :: 装成开机自启（SYSTEM）
+bin\x64\DP-PXEClient.exe --client --uninstall
 ```
 
 > 67 / 69 / 80 是特权端口，**必须管理员运行**。没有管理员权限时程序照常打开，
@@ -216,7 +222,8 @@ go/
 ├─ AutoCommand/                自动安装脚本示例
 ├─ assets/                     icon-src.webp（源图）+ app.ico（多尺寸图标，由 icongen 生成）
 ├─ cmd/icongen/                图标转换小工具（webp/png → 多尺寸 ico）
-├─ rsrc.syso                   内嵌资源（comctl32 清单 + 图标），必须入库
+├─ rsrc_amd64.syso             内嵌资源（comctl32 清单 + 图标），按架构拆分，必须入库
+├─ rsrc_386.syso               同上，32 位
 ├─ HANDOFF.md                  开发交接说明（架构约定 / 踩过的坑 / 待办）
 └─ bin/                        编译产物
 ```
@@ -266,7 +273,7 @@ go/
 两行信息（客户端IP/版本、服务端IP/版本）、带序号和时间戳的日志列表，底部右侧是版本署名。
 
 ```
-bin\DP-PXE.exe --client --gui --server 10.0.0.133   :: 图形界面被控端
+bin\x64\DP-PXE.exe --client --gui --server 10.0.0.133   :: 图形界面被控端
 :: 或菜单「☰ → 启动被控端（本机 · 图形界面）」
 :: 只想看滚动日志：菜单「☰ → 启动被控端（本机 · 控制台）」或 --client（不带 --gui）
 :: PE 里不需要手动指定——start_client.cmd 会自动用 --gui 拉起原生窗口（见 4.1.1）
@@ -293,8 +300,8 @@ PE 没有 WebView2，Wails 一旦调用就会弹「The WebView2 runtime is requi
 
 > ⚠️ **必须内嵌 manifest**：walk 依赖 comctl32 v6 视觉样式，Go 编译的 exe 默认没有清单，
 > 初始化控件会直接失败（`TTM_ADDTOOL failed`）。外部 `<exe>.manifest` 在 Win10 上不生效，
-> 必须用 `rsrc -manifest pe/DP-PXEClient.exe.manifest -o rsrc.syso -arch amd64` 内嵌
-> （`rsrc.syso` 已入库，`build.bat` 缺失时会自动生成）。
+> 必须用 `rsrc -manifest pe/DP-PXEClient.exe.manifest -ico assets/app.ico -o rsrc_amd64.syso -arch amd64` 内嵌
+> （`rsrc_amd64.syso` / `rsrc_386.syso` 已入库，`build.bat` 缺失时会自动生成）。
 
 ### 4.2 内置 VNC 查看器（不再依赖外部 tvnviewer）
 
@@ -327,7 +334,7 @@ PE 没有 WebView2，Wails 一旦调用就会弹「The WebView2 runtime is requi
 ## 5. 验证结果
 
 ```
-bin\DP-PXEClient.exe --selftest
+bin\x64\DP-PXEClient.exe --selftest
 结果：33 通过 / 0 失败
 ```
 
@@ -393,9 +400,9 @@ DHCP(67) 派 IP + option66/67/43/175
 ```bat
 :: ① 菜单「☰ → 启动被控端（本机 · 图形界面）」——打开被控端窗口
 :: ② 手动指定服务端（图形界面）
-bin\DP-PXE.exe --client --gui --server 10.0.0.133
+bin\x64\DP-PXE.exe --client --gui --server 10.0.0.133
 :: ③ 控制台模式（只看滚动日志 / 调试用；PE 里默认走图形界面）
-bin\DP-PXEClient.exe --client --server 10.0.0.133
+bin\x64\DP-PXEClient.exe --client --server 10.0.0.133
 :: ④ 双击 DP-PXEClient.exe（不带参数 = 图形界面 + 自动广播发现服务端）
 ```
 

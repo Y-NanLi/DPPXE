@@ -107,12 +107,49 @@ func runServerGUI(srv *server.Server, webPort int) int {
 			return runHeadless(srv)
 		}
 	}
+	// Wails 缺 WebView2 时弹的是模态框、不会返回错误，必须先自己判断，
+	// 否则进程会卡在弹框上（PE 里就是"完全没反应"）。32 位控制端还要求 32 位运行时。
+	if !hasWebView2() {
+		fmt.Println("未检测到 WebView2 运行时，改用浏览器模式（--web）……")
+		return runBrowser(srv, webPort)
+	}
 	if err := runGUI(srv); err != nil {
 		fmt.Println("图形界面启动失败：", err)
 		fmt.Println("改用浏览器模式（--web）……")
 		return runBrowser(srv, webPort)
 	}
 	return 0
+}
+
+// hasWebView2 检测系统里有没有可用的 WebView2 运行时。
+func hasWebView2() bool {
+	// 1) 固定版运行时（环境变量指向包含 msedgewebview2.exe 的目录）
+	if p := os.Getenv("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"); p != "" {
+		if _, err := os.Stat(filepath.Join(p, "msedgewebview2.exe")); err == nil {
+			return true
+		}
+	}
+	// 2) 常规安装位置（按版本号分子目录）
+	bases := []string{
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), `Microsoft\EdgeWebView\Application`),
+		filepath.Join(os.Getenv("ProgramFiles"), `Microsoft\EdgeWebView\Application`),
+		filepath.Join(os.Getenv("LOCALAPPDATA"), `Microsoft\EdgeWebView\Application`),
+	}
+	for _, base := range bases {
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(base, e.Name(), "msedgewebview2.exe")); err == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // runGUI 用 Wails(WebView2) 打开界面。

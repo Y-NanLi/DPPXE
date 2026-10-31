@@ -11,21 +11,23 @@
 把原 Python 版 PXE（`D:\wb\h-go\rebuild`）重构成 Go 版。**一个可执行文件承担多种角色**，
 角色由**文件名前缀** `dp-pxeclient` 判定，不靠参数：
 
-- `bin\DP-PXE.exe` —— 控制端（Wails + WebView2 GUI），内置 DHCP / TFTP / HTTP / 控制通道 6003 / VNC 查看器
-- `bin\DP-PXEClient.exe` —— 被控端（PE 用原生 Win32 窗口，已装系统用 Wails），执行安装/分区/备份/注入
+- `bin\x64\DP-PXE.exe`（`bin\x86\` 同）—— 控制端（Wails + WebView2 GUI），内置 DHCP / TFTP / HTTP / 控制通道 6003 / VNC 查看器
+- `bin\x64\DP-PXEClient.exe`（`bin\x86\` 同）—— 被控端（PE 用原生 Win32 窗口，已装系统用 Wails），执行安装/分区/备份/注入
 
 ---
 
 ## 1. 常用命令
 
 ```bash
-# 构建（两个产物 tags 不同，别搞混，见 §5.1）
+# 构建（四个产物：x64/x86 × 控制端/被控端，tags 各不相同，见 §5.1）
 build.bat
-# 等价手工命令：
-# 控制端：不带 clientgui → 不链接 walk/win，省约 2.6MB
-go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
-# 被控端：带 clientgui → 含 PE 原生界面（walk）+ 已装系统 Wails 界面
-go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXEClient.exe .
+# 等价手工命令（CGO_ENABLED=0，纯 Go 交叉编译）：
+export CGO_ENABLED=0 GOOS=windows
+# x64 控制端：带 servergui → 含 PE 的 walk 原生界面
+GOARCH=amd64 go build -tags "desktop,production,servergui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/x64/DP-PXE.exe .
+# x64 被控端：带 clientgui → PE 原生界面 + 已装系统 Wails 界面
+GOARCH=amd64 go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/x64/DP-PXEClient.exe .
+# x86 同上，只把 GOARCH 换成 386、输出到 bin/x86/
 
 # Linux 控制端（见 §10）
 ./build-linux.sh                     # → bin/dp-pxe-linux（amd64）
@@ -33,7 +35,7 @@ go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windo
 GOOS=linux CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/dp-pxe-linux .
 
 # 自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）
-bin/DP-PXEClient.exe --selftest        # 期望：33 通过 / 0 失败，退出码 0
+bin/x64/DP-PXEClient.exe --selftest     # 期望：33 通过 / 0 失败，退出码 0
 
 # 单元测试 / 静态检查
 go test ./...
@@ -68,8 +70,8 @@ cd pe && /d/wb/h-go/rebuild/tools/wimlib/wimlib-imagex.exe update ../netboot/boo
 | `netboot/` | TFTP 根目录（引导文件、字体） | 可（WIM 除外，见下） |
 | `cmd/icongen/` | 图标生成工具（webp → ico/png） | 可 |
 | `assets/` | 图标源图与产物（`icon-src.webp`、`app.ico`） | 可 |
-| `rsrc.syso` | **内嵌 manifest + 图标的资源文件** | **必须入库**，不要删 |
-| `bin/` `logs/` `tmp-*/` | 构建与运行产物 | 不入库，不要提交 |
+| `rsrc_amd64.syso` `rsrc_386.syso` | **内嵌 manifest + 图标的资源文件**（按架构拆分） | **必须入库**，不要删；旧的 `rsrc.syso` 已废弃 |
+| `bin/x64/` `bin/x86/` `logs/` `tmp-*/` | 构建与运行产物（`bin/x64` 给 PE 注入用） | 不入库，不要提交 |
 | `netboot/boot/win11x64.WIM` 及 `.pre-*` | 600MB+ 的 PE 镜像与备份 | **不入库**，只在本地 |
 
 **禁止修改（用户明确要求）**
@@ -110,13 +112,21 @@ cd pe && /d/wb/h-go/rebuild/tools/wimlib/wimlib-imagex.exe update ../netboot/boo
 ## 5. 硬性技术约束（踩过的坑，必须遵守）
 
 ### 5.1 编译必须带 `-tags desktop,production`
-**两个产物都要**（被控端还要额外加 `clientgui`）。漏了 `desktop,production` 的话 Wails runtime 是空壳，
-被控端一开 GUI 就弹「Wails applications will not build without the correct build tags」——
+**四个产物都要**（x64/x86 × 控制端/被控端）。漏了 `desktop,production` 的话 Wails runtime 是空壳，
+一开 GUI 就弹「Wails applications will not build without the correct build tags」——
 这是**模态框，进程不退出**，不要只看"进程存活"就当正常。
 
-- 控制端 `-tags desktop,production`：**不加 `clientgui`**，于是 `uigui_windows.go` 被排除，
-  `uigui_stub_windows.go` 顶上（`RunNativeGUI` 返回错误），walk/win 不进二进制，省约 2.6MB。
-- 被控端 `-tags "desktop,production,clientgui"`：含 PE 原生界面。
+| 产物 | tags |
+|---|---|
+| 控制端 `DP-PXE.exe` | `desktop,production,servergui`（`servergui` → PE 里走 walk 原生界面） |
+| 被控端 `DP-PXEClient.exe` | `desktop,production,clientgui`（`clientgui` → PE 原生界面） |
+
+- 不加对应 GUI tag 时 `uigui_stub_windows.go` 顶上（`RunNativeGUI` 返回错误），walk/win 不进二进制，
+  控制端可省约 2.4MB —— 但 PE 里就没界面了。
+- **x64/x86 都要编**：资源文件已拆成 `rsrc_amd64.syso` / `rsrc_386.syso`（Go 按 GOARCH 自动挑选），
+  少一个就会在链接时报 `unknown relocation type`。
+- 控制端启动前会检测 WebView2（`hasWebView2()`）：缺运行时就自动降级到 `--web` 浏览器模式，
+  因为 Wails 缺运行时时弹模态框、**不返回错误**，靠返回值降级来不及。
 
 ### 5.2 PE 里绝不能走 Wails
 PE 没有 WebView2，`wails.Run` 会弹「The WebView2 runtime is required」，不点掉就卡死，
@@ -127,10 +137,13 @@ PE 没有 WebView2，`wails.Run` 会弹「The WebView2 runtime is required」，
 必须内嵌：
 
 ```bash
-rsrc -manifest pe/DP-PXEClient.exe.manifest -ico assets/app.ico -o rsrc.syso -arch amd64
+rsrc -manifest pe/DP-PXEClient.exe.manifest -ico assets/app.ico -o rsrc_amd64.syso -arch amd64
+rsrc -manifest pe/DP-PXEClient.exe.manifest -ico assets/app.ico -o rsrc_386.syso   -arch 386
 ```
 
-`rsrc.syso` **必须入库**；`build.bat` 在它缺失时会用 `go run` 重新生成。
+两个 `.syso` **都必须入库**；`build.bat` 在缺失时会用 `go run` 重新生成。
+**文件名必须带架构后缀**：386 链接器遇到 amd64 的 COFF 会直接报 `unknown relocation type 3`。
+（Linux 构建不受影响：实测 `rsrc_amd64.syso` 不会进 Linux 产物，字节数完全一致。）
 
 ### 5.4 walk 的 `Icon` 字段不能是 nil（typed-nil 陷阱）
 declarative 的 `Icon` 是 `interface{}`。把 `(*walk.Icon)(nil)` 赋进去会变成"有类型的 nil"，
@@ -189,7 +202,7 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
    ```bash
    cp netboot/boot/win11x64.WIM netboot/boot/win11x64.WIM.pre-<主题>
    ```
-   注入后校验 MD5 与 `bin\DP-PXEClient.exe` 一致
+   注入后校验 MD5 与 `bin/x64/DP-PXEClient.exe` 一致
 5. 升版本号时**同步 5 处**：
    - `internal/config/config.go` → `AppVersion` / `ClientVersion`
    - `internal/client/client.go` → `VersionWord = (主版本<<16)|次版本`（2.0 → `2<<16`）
@@ -285,7 +298,8 @@ Go 的 `_windows.go` / `_linux.go` 后缀本来就是干这个的，Windows 构�
 2. **`main.go` 不能直接引用 `internal/client`** —— 被控端参数用 `clientOpts` 结构体传递，
    真正构造 `client.Client` 的代码只能待在 `main_windows.go`。
 3. 改协议 / 前端 / VNC 时**两个平台一起验**（见下面的验证命令），别只编 Windows。
-4. `rsrc.syso` 是 Windows 资源文件，Linux 构建会自动忽略，**不要为了 Linux 删它**。
+4. `rsrc_amd64.syso` / `rsrc_386.syso` 是 Windows 资源文件，Linux 构建不会把它们链进去
+   （实测产物字节数一致），**不要为了 Linux 删它们**。
 5. Linux 侧**不链接 Wails**：`main_linux.go` 不 import wails，所以 `CGO_ENABLED=0` 能编出静态产物。
    需要原生窗口时才考虑 `-tags linuxgui`（当前未实现）。
 6. 平台不支持的能力必须给**明确提示**，不要静默失败或只报"启动失败"。
