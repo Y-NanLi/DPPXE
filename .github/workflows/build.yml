@@ -306,8 +306,9 @@ jobs:
             if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then
               echo "    OK $(printf '%s' "$out" | jq -r '.name')"
             else
-              echo "::error::上传 ${name} 失败（多为跨境超时）。Gitee Release 已建好，直接「重跑本作业」即可补传（脚本幂等：会先删同名旧附件再传）"
-              exit 1
+              # 尽力而为：Gitee 对境外上传大文件基本不通（实测 15MB 也 0 字节超时），
+              # 附件缺失不应让整条流水线变红。Release 正文里已给 GitHub 下载链接。
+              echo "::warning::上传 ${name} 到 Gitee 失败（跨境上传不通，属已知限制）。文件请从 GitHub Release 下载；若必须在 Gitee 提供，请到 Gitee 仓库手动执行 release-pipeline 流水线（在中国机房构建并上传）"
             fi
           done
 
