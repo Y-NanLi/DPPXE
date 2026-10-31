@@ -29,8 +29,11 @@ GOARCH=amd64 go build -tags "desktop,production,servergui" -trimpath -ldflags "-
 GOARCH=amd64 go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/x64/DP-PXEClient.exe .
 # x86 同上，只把 GOARCH 换成 386、输出到 bin/x86/
 
-# Linux 控制端（见 §10）
+# Linux 控制端（见 §10）——发版时 CI 也会构建这两个并放进 Release
 ./build-linux.sh                     # → bin/dp-pxe-linux（amd64）
+# 等价手工命令（纯 Go，可在 Windows 上交叉编译）：
+#   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o bin/dp-pxe-linux-amd64 .
+#   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o bin/dp-pxe-linux-arm64 .
 ./build-linux.sh both                # amd64 + arm64
 GOOS=linux CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/dp-pxe-linux .
 
@@ -237,7 +240,7 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
 ## 8. 其它约定
 
 - 配置目录 `%APPDATA%\DPPXEGo`；旧 Python 配置 `%APPDATA%\HHXSPxeRebuild` **必须保留**（首次启动自动迁移）
-- 版本号当前 **2.2**，格式 `主.次`（界面显示补足三段 `2.2.0`）
+- 版本号当前 **2.3**，格式 `主.次`（界面显示补足三段 `2.3.0`）
 - 备份文件命名：`win11x64.WIM.pre-<改动主题>`，全部被 `.gitignore` 排除
 - 提交信息用中文，格式 `类型: 摘要`（如 `fix: 修复 PE 里被控端不启动`）
 

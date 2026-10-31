@@ -74,7 +74,14 @@ jobs:
           GOARCH=386 go build -tags "desktop,production,clientgui" -trimpath \
             -ldflags "-s -w -H windowsgui" -o dist/DP-PXEClient-x86.exe .
 
-          ls -lh dist/*.exe
+          # Linux 控制端：纯 Go（CGO_ENABLED=0、不带 desktop tags），走浏览器界面，
+          # 不依赖 webkit2gtk，所以能在 Windows runner 上交叉编译。
+          echo "== Linux 控制端（amd64 / arm64）=="
+          export GOOS=linux
+          GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o dist/dp-pxe-linux-amd64 .
+          GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o dist/dp-pxe-linux-arm64 .
+
+          ls -lh dist/
 
       - name: 自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）
         shell: bash
@@ -84,8 +91,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: DP-PXE-windows
-          path: dist/*.exe
+          name: DP-PXE-builds
+          path: dist/
 
   release:
     name: Release
@@ -100,7 +107,7 @@ jobs:
       - name: 下载构建产物
         uses: actions/download-artifact@v4
         with:
-          name: DP-PXE-windows
+          name: DP-PXE-builds
           path: dist
 
       - name: 打包 netboot 与 AutoCommand（显式过滤 *.wim，排除 585MB 的 PE 镜像）
@@ -118,7 +125,7 @@ jobs:
           gh release create "$tag" \
             --title "DP-PXE $tag" \
             --generate-notes \
-            dist/*.exe netboot.zip AutoCommand.zip
+            dist/* netboot.zip AutoCommand.zip
 
       - name: 发布滚动最新版（push 到 main → prerelease）
         if: github.ref == 'refs/heads/main'
@@ -134,7 +141,7 @@ jobs:
             --notes "自动构建于 push 到 main。
           Commit: ${GITHUB_SHA}
           构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            dist/*.exe netboot.zip AutoCommand.zip
+            dist/* netboot.zip AutoCommand.zip
 
   # ───────────────────────────────────────────────────────────────────────────
   # 把同一个 Release 同步到 Gitee。
@@ -167,7 +174,7 @@ jobs:
       - name: 下载构建产物
         uses: actions/download-artifact@v4
         with:
-          name: DP-PXE-windows
+          name: DP-PXE-builds
           path: dist
 
       - name: 打包 netboot 与 AutoCommand
@@ -175,7 +182,7 @@ jobs:
         run: |
           git archive --format=zip -o netboot.zip HEAD netboot ':(exclude)**/*.wim'
           git archive --format=zip -o AutoCommand.zip HEAD AutoCommand
-          ls -lh dist/*.exe netboot.zip AutoCommand.zip
+          ls -lh dist/* netboot.zip AutoCommand.zip
 
       - name: 推送到 Gitee 发行版
         shell: bash

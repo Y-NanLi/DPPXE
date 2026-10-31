@@ -1,7 +1,7 @@
-# DP-PXE —— Go 重构版（v2.2）
+# DP-PXE —— Go 重构版（v2.3）
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.2-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
+[![Version](https://img.shields.io/badge/version-2.3-brightgreen.svg)](https://github.com/Y-NanLi/DPPXE/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#系统要求)
 
 ## 🚀 在线演示
@@ -74,7 +74,7 @@
 
 ### 2.1 直接用发布版（推荐）
 
-到 [Releases](https://github.com/Y-NanLi/DPPXE/releases) 下载最新版，每个版本附带 6 个产物：
+到 [Releases](https://github.com/Y-NanLi/DPPXE/releases) 下载最新版，每个版本附带 8 个产物：
 
 | 产物 | 用途 |
 | --- | --- |
@@ -82,8 +82,13 @@
 | `DP-PXEClient.exe` | 被控端 x64 / 模拟器 / 无界面服务端（**PE 里用这个**） |
 | `DP-PXE-x86.exe` | 控制端 32 位（给 32 位系统，需 32 位 WebView2 运行时） |
 | `DP-PXEClient-x86.exe` | 被控端 32 位 |
+| `dp-pxe-linux-amd64` | **Linux 控制端**（x86_64，浏览器界面，`sudo ./dp-pxe-linux-amd64`） |
+| `dp-pxe-linux-arm64` | **Linux 控制端**（ARM64，同上） |
 | `netboot.zip` | PXE 引导资源（EFI/BIOS/iPXE/BCD/菜单等） |
 | `AutoCommand.zip` | 自动安装脚本示例 |
+
+> Linux 版**只含控制端**（DHCP/TFTP/HTTP/控制通道/VNC 查看器/Web 界面），被控端仍只有 Windows / PE 版。
+> 二进制是纯 Go 静态编译，不依赖 webkit2gtk；DHCP 67 / TFTP 69 / HTTP 80 是特权端口，需要 `sudo`。
 
 > `-x86` 后缀只是区分架构；角色判定看**文件名前缀**（`DP-PXEClient` = 被控端），改名会变角色。
 

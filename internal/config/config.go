@@ -17,12 +17,12 @@ import (
 
 const (
 	AppName    = "DP-PXE (Go Rebuild)"
-	AppVersion = "2.2"
+	AppVersion = "2.3"
 	// ClientVersion 被控端版本号，握手时上报给服务端。
-	ClientVersion = "2.2"
+	ClientVersion = "2.3"
 )
 
-// VersionParts 把 AppVersion 拆成握手里用的三段版本号（"2.2" → 2,2,0）。
+// VersionParts 把 AppVersion 拆成握手里用的三段版本号（"2.3" → 2,3,0）。
 //
 // 服务端握手回包必须带真实版本，否则被控端界面上的「服务端版本」永远是 1.0。
 func VersionParts() (major, minor, patch uint32) {
