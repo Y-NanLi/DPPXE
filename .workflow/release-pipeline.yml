@@ -59,10 +59,13 @@ stages:
           - go version
           - go mod tidy
           - mkdir -p bin
-          # 控制端：不带 clientgui → 不链接 walk/win，省约 1.9MB
-          - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
-          # 被控端：必须带 clientgui（PE 原生界面）+ desktop,production（Wails runtime）
+          # 控制端：带 servergui（PE 里走 walk 原生界面）
+          - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags "desktop,production,servergui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE.exe .
+          # 被控端：带 clientgui（PE 原生界面）+ desktop,production（Wails runtime）
           - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXEClient.exe .
+          # x86：加 -x86 后缀区分（角色判定只看文件名前缀）
+          - CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags "desktop,production,servergui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXE-x86.exe .
+          - CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXEClient-x86.exe .
           - ls -lh bin
           # 算出本次发版用的 Tag：优先取当前提交上的 tag，取不到就回退到 config.AppVersion
           - 'TAG=$(git describe --tags --exact-match 2>/dev/null || true); if [ -z "$TAG" ]; then VER=$(sed -n ''s/.*AppVersion *= *"\([^"]*\)".*/\1/p'' internal/config/config.go | head -1); TAG="v${VER}"; fi; echo "PKG_TAG=${TAG}" >> GITEE_PARAMS; echo "本次发版 Tag = ${TAG}"'
@@ -104,6 +107,8 @@ stages:
         assertFiles:
           - bin/DP-PXE.exe
           - bin/DP-PXEClient.exe
+          - bin/DP-PXE-x86.exe
+          - bin/DP-PXEClient-x86.exe
         prerelease: false
         # 同一 Tag 重复发版时覆盖旧 Release（重新打标签重发时有用）
         allowUpdate: true
