@@ -188,14 +188,14 @@ jobs:
           fi
 
           API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
-          ASSETS="DP-PXE.exe DP-PXEClient.exe DP-PXE-x86.exe DP-PXEClient-x86.exe netboot.zip AutoCommand.zip"
+          ASSETS="DP-PXE.exe DP-PXEClient.exe"
 
           # gitee.com 从 GitHub runner（Azure）跨境访问：建连经常 10~30 秒，偶发 reset / timeout。
           # 实测 gitee.com 本身可达（首页 200），所以靠「长超时 + 多重试」扛过去。
           CURL="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 180 --retry 8 --retry-delay 8 --retry-connrefused --retry-max-time 600"
           # 上传大文件（12~15MB）跨境很慢，180 秒不够（实测 15MB 会 0 字节超时），
           # 单独放宽到 900 秒，并减少重试次数（每次重试都要重传整个文件）。
-          CURLUP="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 900 --retry 2 --retry-delay 10 --retry-connrefused"
+          CURLUP="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 600 --retry 1 --retry-delay 10 --retry-connrefused"
 
           echo "== 预检：确认仓库与令牌可用 =="
           rc=$($CURL -o /dev/null -w '%{http_code}' -G "${API}" \
@@ -210,7 +210,7 @@ jobs:
           fi
           echo "   OK ${GITEE_OWNER}/${GITEE_REPO}"
 
-          NOTES="$(printf 'DP-PXE %s 自动构建发布\n\n- 提交：%s\n- GitHub Release：https://github.com/%s/releases/tag/%s\n- 详细变更见仓库 更新记录.md\n- PE 镜像 win11x64.WIM 体积超限，不在产物内，需自备' \
+          NOTES="$(printf 'DP-PXE %s 自动构建发布\n\n- 提交：%s\n- GitHub Release：https://github.com/%s/releases/tag/%s\n- 详细变更见仓库 更新记录.md\n- x86 版与 netboot.zip / AutoCommand.zip 见 GitHub Release（跨境上传受限，此处只放 x64 两个 exe）\n- PE 镜像 win11x64.WIM 体积超限，不在产物内，需自备' \
             "$TAG" "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" "$TAG")"
 
           echo "== 查找 tag ${TAG} 是否已有 Release =="
@@ -295,7 +295,9 @@ jobs:
           fi
 
           echo "== 上传附件 =="
-          for f in dist/DP-PXE.exe dist/DP-PXEClient.exe dist/DP-PXE-x86.exe dist/DP-PXEClient-x86.exe netboot.zip AutoCommand.zip; do
+          # Gitee 只传两个 x64 exe：跨境上传 48MB（4 exe + 2 zip）实测会卡死，
+          # 27MB 勉强可接受。x86 版与 zip 在 GitHub Release 上，正文里给了链接。
+          for f in dist/DP-PXE.exe dist/DP-PXEClient.exe; do
             name=$(basename "$f")
             echo "  上传 ${name}"
             out=$($CURLUP -X POST "${API}/releases/${RID}/attach_files" \
@@ -304,7 +306,7 @@ jobs:
             if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then
               echo "    OK $(printf '%s' "$out" | jq -r '.name')"
             else
-              echo "::error::上传 ${name} 失败，响应片段：$(printf '%s' "$out" | head -c 300)"
+              echo "::error::上传 ${name} 失败（多为跨境超时）。Gitee Release 已建好，直接「重跑本作业」即可补传（脚本幂等：会先删同名旧附件再传）"
               exit 1
             fi
           done
