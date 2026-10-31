@@ -166,6 +166,9 @@ jobs:
       GITEE_OWNER: ${{ vars.GITEE_OWNER || 'nan-liGit' }}
       GITEE_REPO: ${{ vars.GITEE_REPO || 'DPPXE' }}
       GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+      # Gitee 附件上传默认关闭：跨境上传实测不通（15MB 也会 0 字节超时）。
+      # 若哪天恢复了，把仓库 Variable GITEE_UPLOAD 设为 true 即可。
+      GITEE_UPLOAD: ${{ vars.GITEE_UPLOAD || 'false' }}
       TAG: ${{ github.ref_name }}
     steps:
       - name: 检出代码
@@ -202,7 +205,7 @@ jobs:
           CURL="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 180 --retry 8 --retry-delay 8 --retry-connrefused --retry-max-time 600"
           # 上传大文件（12~15MB）跨境很慢，180 秒不够（实测 15MB 会 0 字节超时），
           # 单独放宽到 900 秒，并减少重试次数（每次重试都要重传整个文件）。
-          CURLUP="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 600 --retry 1 --retry-delay 10 --retry-connrefused"
+          CURLUP="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 300 --retry 0 --retry-connrefused"
 
           echo "== 预检：确认仓库与令牌可用 =="
           rc=$($CURL -o /dev/null -w '%{http_code}' -G "${API}" \
@@ -299,6 +302,14 @@ jobs:
             else
               echo "   （列附件失败或为空，跳过删除，直接尝试上传）"
             fi
+          fi
+
+          if [ "${GITEE_UPLOAD:-false}" != "true" ]; then
+            echo "== 跳过附件上传 =="
+            echo "   Gitee 跨境上传不通，已默认跳过；文件请从 GitHub Release 下载。"
+            echo "   如需开启：仓库 Settings → Variables 添加 GITEE_UPLOAD=true"
+            echo "完成：https://gitee.com/${GITEE_OWNER}/${GITEE_REPO}/releases/tag/${TAG}"
+            exit 0
           fi
 
           echo "== 上传附件 =="
