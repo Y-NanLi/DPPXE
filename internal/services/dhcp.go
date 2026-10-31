@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sys/windows"
-
 	"dppxe/internal/config"
 )
 
@@ -204,10 +202,7 @@ func listenUDPBroadcast(ip string, port int) (*net.UDPConn, error) {
 	}
 	raw, err := conn.SyscallConn()
 	if err == nil {
-		_ = raw.Control(func(fd uintptr) {
-			_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_BROADCAST, 1)
-			_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_REUSEADDR, 1)
-		})
+		_ = raw.Control(func(fd uintptr) { setBroadcastReuse(fd) })
 	}
 	return conn, nil
 }

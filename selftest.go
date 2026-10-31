@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"dppxe/internal/client"
 	"dppxe/internal/config"
 	"dppxe/internal/protocol"
 	"dppxe/internal/services"
@@ -42,7 +41,7 @@ func runSelftest() int {
 	testControl(t)
 	testHTTP(t)
 	testTFTP(t)
-	testEngine(t)
+	testEngineRole(t)
 
 	fmt.Printf("\n结果：%d 通过 / %d 失败\n", t.pass, t.fail)
 	if t.fail > 0 {
@@ -408,39 +407,4 @@ func testTFTP(t *tester) {
 	}
 	t.check(fmt.Sprintf("RRQ 传完文件（%d B）", len(content)),
 		bytes.Equal(data, content), fmt.Sprintf("收到 %d B from %v", len(data), serverAddr))
-}
-
-func testEngine(t *tester) {
-	fmt.Println("[被控端脚本引擎]")
-	var lines []string
-	cb := client.Callbacks{OnLog: func(s string) { lines = append(lines, s) }}
-	c := client.New("127.0.0.1", 6003, true, "SELFTEST", true, cb)
-	eng := client.NewEngine(c, true)
-
-	script := `ALL ADDLOG 开始 %COMPUTERNAME%
-ALL SETVAR X=5
-ALL IF %X% = 5 THEN ADDLOG 条件成立
-ALL FOR I=1 TO 3
-ALL ADDLOG 循环 %I%
-ALL NEXT
-:END
-ALL ADDLOG 结束`
-	eng.RunScript(script)
-	joined := strings.Join(lines, "|")
-	t.check("变量替换 + 单行 IF", strings.Contains(joined, "条件成立"), joined)
-	t.check("FOR/NEXT 循环 3 次",
-		strings.Contains(joined, "循环 1") && strings.Contains(joined, "循环 3") &&
-			!strings.Contains(joined, "循环 4"), joined)
-	t.check("ADDLOG 执行", strings.Contains(joined, "结束"), joined)
-
-	lines = nil
-	eng.ExecRaw(`UNCOMPRESS "D:\a.wim|2" C: TRUE`)
-	t.check("结构化指令 UNCOMPRESS 解析",
-		strings.Contains(strings.Join(lines, "|"), "卷2"), strings.Join(lines, "|"))
-
-	lines = nil
-	eng.ExecRaw("SETVAR P=42")
-	eng.ExecRaw("ADDLOG 值是 %P%")
-	t.check("SETVAR 变量生效", strings.Contains(strings.Join(lines, "|"), "值是 42"),
-		strings.Join(lines, "|"))
 }

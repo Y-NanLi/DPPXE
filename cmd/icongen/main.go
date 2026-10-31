@@ -62,10 +62,10 @@ func main() {
 		if s >= 256 {
 			w = 0 // ICO 里 256 用 0 表示
 		}
-		head.WriteByte(w) // width
-		head.WriteByte(w) // height
-		head.WriteByte(0) // color count
-		head.WriteByte(0) // reserved
+		head.WriteByte(w)                                        // width
+		head.WriteByte(w)                                        // height
+		head.WriteByte(0)                                        // color count
+		head.WriteByte(0)                                        // reserved
 		_ = binary.Write(&head, binary.LittleEndian, uint16(1))  // planes
 		_ = binary.Write(&head, binary.LittleEndian, uint16(32)) // bit count
 		_ = binary.Write(&head, binary.LittleEndian, uint32(len(frames[i])))

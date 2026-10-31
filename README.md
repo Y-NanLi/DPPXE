@@ -62,9 +62,10 @@
 
 ### 系统要求
 
-- Windows 10 / 11（x64）
+- Windows 10 / 11（x64）—— 控制端 + 被控端
+- **Linux（x64 / arm64）—— 仅控制端**，见 2.3（`linux` 分支）
 - WebView2 Runtime（Win11 自带；没有就用 `--web` 走浏览器模式）
-- **管理员权限**：67 / 69 / 80 是特权端口，跑完整服务必须管理员
+- **管理员 / root 权限**：67 / 69 / 80 是特权端口，跑完整服务必须提权
 - 客户机需支持 PXE 网卡启动（UEFI 或 Legacy BIOS）
 
 ---
@@ -126,6 +127,52 @@ bin\DP-PXEClient.exe --client --uninstall
 
 > 67 / 69 / 80 是特权端口，**必须管理员运行**。没有管理员权限时程序照常打开，
 > 只有对应服务启动失败并写进日志；控制通道（6003）不受影响。
+
+### 2.3 Linux 控制端（`linux` 分支）
+
+Linux 版**只提供控制端**：DHCP / TFTP / HTTP / 控制通道 6003 / 服务发现 6004 / 内置 VNC 查看器 / Web 界面。
+被控端（分区、wimlib 还原、bcdboot 修引导、写注册表、注入 VNC）全是 Windows 专有操作，
+仍然只在 Windows / PE 里运行 —— 典型用法就是「Linux 服务器 PXE 批量装 Windows」。
+
+```bash
+./build-linux.sh              # 编 amd64 → bin/dp-pxe-linux
+./build-linux.sh arm64        # 编 arm64
+./build-linux.sh both         # 两个架构都编
+```
+
+交叉编译（在 Windows 上也能出 Linux 产物）：
+
+```bash
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/dp-pxe-linux .
+```
+
+运行：
+
+```bash
+sudo ./bin/dp-pxe-linux                  # 起服务 + 浏览器打开界面（http://127.0.0.1:8788）
+sudo ./bin/dp-pxe-linux --nogui          # 无界面模式（systemd 托管用这个）
+sudo ./bin/dp-pxe-linux --nogui --ip 192.168.1.10
+./bin/dp-pxe-linux --selftest            # 自检（不需要 root）
+```
+
+**界面形态**：Linux 默认走浏览器模式，不链接 Wails —— 控制端多数跑在没装桌面的服务器上，
+而 Wails 需要 CGO + libgtk-3 + libwebkit2gtk，装不起也用不上。
+
+**可选依赖**（缺了不影响主流程，只影响对应功能）：
+
+| 依赖 | 用途 | 缺失时的表现 |
+| --- | --- | --- |
+| `tcpdump` | 抓包诊断 | 「抓包诊断」提示先安装 tcpdump |
+| `zenity` / `kdialog` | 界面上的选择文件/文件夹对话框 | 提示手动输入路径 |
+| `firewalld` / `ufw` | 一键放行 67/68/69/80/6003 | 列出端口，提示手动放行 |
+
+**与 Windows 版的差异**：
+
+- 配置目录改 `$XDG_CONFIG_HOME/DPPXEGo`（默认 `~/.config/DPPXEGo`），不再迁移 Python 旧配置
+- 权限判定用 `geteuid()==0`
+- 抓包用 `tcpdump`（Windows 是 `pktmon`），产物直接是 `.pcap`
+- 「启动本机被控端 / 模拟器 / 安装自启」按钮返回明确提示（Linux 没有被控端）
+- 自检少 5 项（被控端脚本引擎），显示「跳过」而不是静默少跑
 
 ---
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -28,64 +27,7 @@ var tftpOpByCode = map[uint16]string{
 
 var archByCode = map[uint16]string{0: "BIOS", 6: "EFI32", 7: "EFI64", 9: "EFI64", 10: "ARM64"}
 
-// CaptureAvailable 系统是否有 pktmon（Win10 1809+）。
-func CaptureAvailable() bool {
-	_, err := exec.LookPath("pktmon")
-	return err == nil
-}
-
-// StartCapture 开始抓包。
-func StartCapture(etl string) (bool, string) {
-	if !CaptureAvailable() {
-		return false, "系统没有 pktmon（需要 Win10 1809+）"
-	}
-	run := func(args ...string) (string, error) {
-		cmd := exec.Command(args[0], args[1:]...)
-		hideWindow(cmd)
-		out, err := cmd.CombinedOutput()
-		return string(out), err
-	}
-	_, _ = run("pktmon", "stop")
-	_, _ = run("pktmon", "filter", "remove")
-	for _, f := range [][3]string{
-		{"D67", "67", "udp"}, {"D68", "68", "udp"},
-		{"T69", "69", "udp"}, {"H80", "80", "tcp"},
-	} {
-		_, _ = run("pktmon", "filter", "add", f[0], "-p", f[1], "-t", f[2])
-	}
-	out, err := run("pktmon", "start", "--capture", "--pkt-size", "0", "--file-name", etl)
-	if err != nil {
-		msg := strings.TrimSpace(out)
-		if len(msg) > 200 {
-			msg = msg[:200]
-		}
-		return false, msg
-	}
-	return true, "抓包已开始"
-}
-
-// StopCapture 停止抓包并转成 pcap。
-func StopCapture(etl, pcap string) (bool, string) {
-	run := func(args ...string) (string, error) {
-		cmd := exec.Command(args[0], args[1:]...)
-		hideWindow(cmd)
-		out, err := cmd.CombinedOutput()
-		return string(out), err
-	}
-	_, _ = run("pktmon", "stop")
-	out, _ := run("pktmon", "etl2pcap", etl, "-o", pcap)
-	if st, err := os.Stat(pcap); err == nil && st.Size() > 24 {
-		return true, fmt.Sprintf("已生成 %s（%d 字节）", filepath.Base(pcap), st.Size())
-	}
-	msg := strings.TrimSpace(out)
-	if len(msg) > 200 {
-		msg = msg[:200]
-	}
-	if msg == "" {
-		msg = "pcap 未生成"
-	}
-	return false, msg
-}
+// ---------------------------------------------------------------- 采集（平台实现见 capture_*.go）
 
 // ---------------------------------------------------------------- 解析
 
@@ -186,9 +128,29 @@ func readPcapng(data []byte) []pcapPacket {
 }
 
 // stripEthernet 去掉链路层头，只留 IPv4。
+//
+// 支持三种链路层类型：
+//
+//	1   Ethernet（Windows 上的 pktmon、Linux 上绑具体网卡）
+//	113 SLL      （Linux tcpdump -i any，16 字节头）
+//	276 SLL2     （较新内核的 tcpdump -i any，20 字节头）
 func stripEthernet(pkt []byte, linkType uint32) []byte {
 	if linkType == 101 { // raw IP
 		return pkt
+	}
+	// SLL：packet type(2) + ARPHRD(2) + addr len(2) + addr(8) + proto(2)
+	if linkType == 113 {
+		if len(pkt) < 16 || binary.BigEndian.Uint16(pkt[14:]) != 0x0800 {
+			return nil
+		}
+		return pkt[16:]
+	}
+	// SLL2：proto(2) + reserved(2) + ifindex(4) + ARPHRD(2) + pkttype(1) + addrlen(1) + addr(8)
+	if linkType == 276 {
+		if len(pkt) < 20 || binary.BigEndian.Uint16(pkt[0:]) != 0x0800 {
+			return nil
+		}
+		return pkt[20:]
 	}
 	if len(pkt) < 14 {
 		return nil
@@ -368,8 +330,11 @@ func hashBytes(b []byte) uint64 {
 }
 
 // CaptureFileNames 返回 logs 目录下的固定产物路径。
-func CaptureFileNames(logDir string) (etl, pcap string) {
-	return filepath.Join(logDir, "run.etl"), filepath.Join(logDir, "run.pcap")
+//
+// Windows：pktmon 先写 .etl 再转 .pcap，两个路径不同；
+// Linux：tcpdump 直接写 .pcap，captureRawExt 为空，两个路径相同。
+func CaptureFileNames(logDir string) (raw, pcap string) {
+	return filepath.Join(logDir, "run"+captureRawExt), filepath.Join(logDir, "run.pcap")
 }
 
 // CaptureNow 时间戳后缀（给文件名用）。

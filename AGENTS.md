@@ -27,6 +27,11 @@ go build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bi
 # 被控端：带 clientgui → 含 PE 原生界面（walk）+ 已装系统 Wails 界面
 go build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin/DP-PXEClient.exe .
 
+# Linux 控制端（见 §10）
+./build-linux.sh                     # → bin/dp-pxe-linux（amd64）
+./build-linux.sh both                # amd64 + arm64
+GOOS=linux CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o bin/dp-pxe-linux .
+
 # 自检（协议 / 控制通道 / 文件分片 / DHCP / HTTP / TFTP / 脚本引擎）
 bin/DP-PXEClient.exe --selftest        # 期望：33 通过 / 0 失败，退出码 0
 
@@ -82,7 +87,9 @@ cd pe && /d/wb/h-go/rebuild/tools/wimlib/wimlib-imagex.exe update ../netboot/boo
 - **前端**：原生 HTML/CSS/JS，`//go:embed all:dist`，**不引入任何前端框架/构建工具**
 - **Windows API**：`golang.org/x/sys/windows`；只在必要时直接 syscall
 - **新增第三方依赖**：先论证必要性。当前依赖已覆盖需求，**不要为了一个小功能引入新库**
-- **不支持跨平台**：大量 Windows 专有调用，只构建 amd64
+- **跨平台**：Windows 出控制端 + 被控端；Linux 只出控制端（见 §10）。
+  平台差异一律走 `_windows.go` / `_linux.go`（或 `_other.go` + `//go:build !windows`）后缀，
+  **不要写 `runtime.GOOS` 分支**
 
 ---
 
@@ -234,3 +241,62 @@ ESP 在 PE 里没有盘符、加不了 `/s`，所以让 bcdboot 用"固件标识
 | 网络启动一堆 404 | 是 UEFI 正常探测（见 `更新记录.md` TFTP 降噪一节），不是故障 |
 
 更完整的历史坑与定位手册见 `HANDOFF.md`。
+
+---
+
+## 10. 平台分层（Windows / Linux 共存）
+
+**设计决策：同一工程 + 构建约束，不另开 `go-linux/` 目录。**
+
+理由：协议 / VNC 客户端 / TFTP / HTTP / 控制通道 / 前端占全部代码六成以上，
+复制一份的代价是「改协议要改两处、前端要维护两份」，直接违背单源原则。
+Go 的 `_windows.go` / `_linux.go` 后缀本来就是干这个的，Windows 构建行为零变化。
+
+**能力分工**
+
+| 能力 | Windows | Linux |
+|---|---|---|
+| 控制端：DHCP / TFTP / HTTP / 6003 / 6004 / VNC 查看器 / Web 界面 | ✅ | ✅ |
+| 被控端：分区 / 还原 / 引导修复 / 注册表 / 注入 VNC | ✅ | ❌ 代码保留，但不参与 Linux 编译 |
+
+被控端在 Linux 上没有意义（diskpart、wimlib、bcdboot、注册表全是 Windows 专有）。
+典型用法：**Linux 服务器 PXE 批量装 Windows**。
+
+**文件归属表**（新增平台相关代码时按这张表放）
+
+| 位置 | 约束 | 职责 |
+|---|---|---|
+| `internal/client/*.go` | `//go:build windows` | 整个被控端包 |
+| `internal/webui/client.go` | `//go:build windows` | 被控端 GUI 的本地 API |
+| `main_windows.go` / `main_linux.go` | 后缀 | `runInstall` / `runSimRole` / `runClientRole` / `runServerGUI` |
+| `helpers_windows.go` / `helpers_linux.go` | 后缀 | 控制台补窗口、`openBrowser` |
+| `internal/config/paths_*.go` | 后缀 | 配置目录（`%APPDATA%` vs `$XDG_CONFIG_HOME`） |
+| `internal/server/admin_*.go` | 后缀 | `IsAdmin` / `launchSupported` / `vncViewerNames` |
+| `internal/server/dialogs_*.go` / `platform_*.go` | 后缀 | 文件对话框、`openPath` |
+| `internal/services/sockopt_*.go` | 后缀 | `SO_BROADCAST` / `SO_REUSEADDR`（Linux 多一个 `SO_REUSEPORT`） |
+| `internal/services/firewall_*.go` | 后缀 | `netsh` vs `firewall-cmd` / `ufw` |
+| `internal/services/capture_*.go` | 后缀 | `pktmon` vs `tcpdump` |
+| `internal/services/exec_*.go` | 后缀 | `hideWindow`（Linux 空实现） |
+| `selftest_windows.go` / `selftest_linux.go` | 后缀 | 被控端脚本引擎自检 |
+
+**硬性约束**
+
+1. **平台差异只走文件后缀 + `//go:build`，不写 `runtime.GOOS` 分支。**
+2. **`main.go` 不能直接引用 `internal/client`** —— 被控端参数用 `clientOpts` 结构体传递，
+   真正构造 `client.Client` 的代码只能待在 `main_windows.go`。
+3. 改协议 / 前端 / VNC 时**两个平台一起验**（见下面的验证命令），别只编 Windows。
+4. `rsrc.syso` 是 Windows 资源文件，Linux 构建会自动忽略，**不要为了 Linux 删它**。
+5. Linux 侧**不链接 Wails**：`main_linux.go` 不 import wails，所以 `CGO_ENABLED=0` 能编出静态产物。
+   需要原生窗口时才考虑 `-tags linuxgui`（当前未实现）。
+6. 平台不支持的能力必须给**明确提示**，不要静默失败或只报"启动失败"。
+   例：Linux 点「启动被控端」返回「Linux 版只提供控制端，被控端请在 Windows / PE 里运行」。
+
+**提交前验证**
+
+```bash
+go build -tags "desktop,production,servergui" -o /tmp/a.exe . && \
+go build -tags "desktop,production,clientgui" -o /tmp/b.exe . && \
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/dp-pxe-linux . && \
+go vet ./... && GOOS=linux go vet ./... && \
+go test ./... && bin/DP-PXEClient.exe --selftest   # 期望 33/33
+```

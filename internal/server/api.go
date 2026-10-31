@@ -221,10 +221,14 @@ func (s *Server) Command(cmd string, a Args) Result {
 	case "exportLog":
 		return s.cmdExportLog()
 	case "openCfgDir":
-		_ = exec.Command("explorer", config.ConfigDir()).Start()
+		if err := openPath(config.ConfigDir()); err != nil {
+			return errResult("打开配置目录失败：" + err.Error())
+		}
 		return okResult("已打开配置目录", nil)
 	case "openLogDir":
-		_ = exec.Command("explorer", s.LogDir).Start()
+		if err := openPath(s.LogDir); err != nil {
+			return errResult("打开日志目录失败：" + err.Error())
+		}
 		return okResult("已打开日志目录", nil)
 	case "launchClient":
 		return s.cmdLaunch("client")
@@ -917,7 +921,7 @@ func (s *Server) FindVncViewer() string {
 	}
 	appDir := DefaultLogDir()
 	appDir = filepath.Dir(appDir)
-	names := []string{"tvnviewer.exe", "vncviewer.exe", "vncviewer64.exe"}
+	names := vncViewerNames
 	var cands []string
 	for _, base := range []string{
 		filepath.Join(s.cfg.RootDir, "vnc"),
@@ -1055,6 +1059,9 @@ func (s *Server) cmdExportLog() Result {
 }
 
 func (s *Server) cmdLaunch(kind string) Result {
+	if !launchSupported {
+		return errResult("Linux 版只提供控制端，被控端请在 Windows / PE 里运行")
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return errResult("找不到程序自身路径")

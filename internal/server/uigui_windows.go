@@ -408,9 +408,9 @@ func applyIP() {
 
 func applySwitches() {
 	runCmd("saveConfig", Args{
-		"dhcp_enabled": chkDhcp.Checked(),
-		"tftp_enabled": chkTftp.Checked(),
-		"http_enabled": chkHttp.Checked(),
+		"dhcp_enabled":    chkDhcp.Checked(),
+		"tftp_enabled":    chkTftp.Checked(),
+		"http_enabled":    chkHttp.Checked(),
 		"filesvc_enabled": chkFile.Checked(),
 	})
 }

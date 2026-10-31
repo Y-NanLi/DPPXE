@@ -1,35 +1,49 @@
 // DP-PXE —— Go 重构版（单文件多角色）
 //
-//	DP-PXE.exe                      启动图形界面（Wails + WebView2）
-//	DP-PXE.exe --nogui              无界面模式，直接跑 DHCP/TFTP/HTTP/文件服务
-//	DP-PXE.exe --web                不开窗口，用浏览器打开界面（WebView2 不可用时兜底）
-//	DP-PXE.exe --client --server IP 被控端（PE / 已装系统）
-//	DP-PXE.exe --sim  --server IP   被控端模拟器（只记录不执行）
-//	DP-PXE.exe --selftest           协议 / 控制通道 / 文件分片 / 脚本引擎自检
+// 控制端（Windows / Linux 通用）：
+//
+//	DP-PXE                          图形界面（Windows: Wails + WebView2；Linux: 浏览器模式）
+//	DP-PXE --nogui                  无界面模式，直接跑 DHCP/TFTP/HTTP/文件服务
+//	DP-PXE --web                    不开窗口，用浏览器打开界面
+//	DP-PXE --selftest               协议 / 控制通道 / 文件分片 / 脚本引擎自检
+//
+// 被控端（仅 Windows，PE / 已装系统）：
+//
+//	DP-PXE --client --server IP     被控端
+//	DP-PXE --sim  --server IP       被控端模拟器（只记录不执行）
+//
+// 平台差异集中在三处：main_windows.go / main_linux.go、helpers_*.go，
+// 以及各 internal 包里同名不同后缀的实现文件。
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
-	"dppxe/internal/client"
 	"dppxe/internal/config"
 	"dppxe/internal/server"
 	"dppxe/internal/webui"
 )
+
+// clientOpts 被控端启动参数。
+//
+// 故意不引用 internal/client（那个包只在 Windows 上编译），
+// 否则 Linux 构建会连带把整个被控端拖进来。
+type clientOpts struct {
+	ServerAddr string // 服务端 IP，空则自动发现
+	Port       int    // 控制端口
+	DryRun     bool   // 只记录不执行
+	Name       string // 客户端名称，空则用主机名
+	Quiet      bool   // 静默模式
+	GUI        bool   // 显式要求图形界面（--gui）
+	NoGUI      bool   // 强制控制台（--nogui）
+}
 
 func main() {
 	fs := flag.NewFlagSet("DP-PXE", flag.ContinueOnError)
@@ -60,6 +74,7 @@ func main() {
 	)
 	// 被控端/模拟器/自检都在控制台里跑：GUI 版程序被这样调用时先补一个控制台窗口，
 	// 否则 windowsgui 子系统没有 stdout，用户看到的就是"双击没反应"。
+	// （Linux 上 ensureConsole / fixConsoleCodepage 是空实现。）
 	withGUI := false
 	needConsole := false
 	for _, a := range os.Args[1:] {
@@ -99,18 +114,10 @@ func main() {
 		os.Exit(runSelftest())
 	}
 	if *install || *uninstall {
-		if *uninstall {
-			os.Exit(client.Uninstall())
-		}
-		os.Exit(client.Install(*serverAddr, *port))
+		os.Exit(runInstall(*uninstall, *serverAddr, *port))
 	}
 	if *isSim {
-		if err := client.RunSim(*serverAddr, *port); err != nil {
-			fmt.Println("模拟器退出:", err)
-			pauseIfConsole()
-			os.Exit(1)
-		}
-		return
+		os.Exit(runSimRole(*serverAddr, *port))
 	}
 	// 角色判定：
 	//   DP-PXEClient.exe 这个文件名本身就代表"被控端"——PE 里的老启动脚本是
@@ -121,41 +128,18 @@ func main() {
 		(clientBinary && !*isSim && !*selftest && !*install && !*uninstall && !*webMode)
 
 	if runAsClient {
-		cli := client.New(*serverAddr, *port, *dryRun, *clientName, *quiet, client.Callbacks{})
-		// GUI 规则：显式 --gui 一定开；客户端二进制只要没写 --nogui 就开界面。
-		//
-		// 但 **PE 里不能用 Wails**：PE 没有 WebView2，Wails 会弹
-		// "The WebView2 runtime is required" 的模态框卡住整个被控端。
-		// PE 改用原生 Win32 界面（client.RunNativeGUI，纯 user32/gdi32）。
-		inPE := client.IsPE()
-		wantGUI := (*guiClient || (clientBinary && !*nogui)) && !inPE
-		if wantGUI {
-			if err := runClientGUI(cli); err == nil {
-				return
-			}
-			fmt.Println("被控端界面启动失败，改用控制台模式…")
-		}
-		// PE：默认开原生界面；--nogui 或开窗失败则退回控制台。
-		if inPE && !*nogui {
-			if err := client.RunNativeGUI(cli); err == nil {
-				return
-			} else {
-				// 先把控制台补出来再报错，否则这行会写到无效句柄上丢掉。
-				ensureConsole()
-				fixConsoleCodepage()
-				fmt.Println("PE 图形界面启动失败，改用控制台模式：", err)
-			}
-		}
-		// PE 里双击（不带任何参数）时 needConsole 为 false，但控制台模式必须有
-		// 输出，否则用户看到的就是"启动了但什么都没有"。
-		if inPE && !needConsole {
-			ensureConsole()
-			fixConsoleCodepage()
-		}
-		cli.RunForever()
-		return
+		os.Exit(runClientRole(clientOpts{
+			ServerAddr: *serverAddr,
+			Port:       *port,
+			DryRun:     *dryRun,
+			Name:       *clientName,
+			Quiet:      *quiet,
+			GUI:        *guiClient,
+			NoGUI:      *nogui,
+		}))
 	}
 
+	// ---------------- 控制端 ----------------
 	cfg := config.Load()
 	if *rootDir != "" {
 		cfg.RootDir = *rootDir
@@ -190,100 +174,9 @@ func main() {
 	if *webMode {
 		os.Exit(runBrowser(srv, *webPort))
 	}
-	// PE 里不能用 Wails：没有 WebView2，wails.Run 会弹
-	// "The WebView2 runtime is required" 的模态框，不点掉就卡死。
-	// 改用 walk 原生界面（控制端精简版）。
-	if client.IsPE() {
-		if err := server.RunNativeGUI(srv); err == nil {
-			return
-		} else {
-			ensureConsole()
-			fixConsoleCodepage()
-			fmt.Println("PE 图形界面启动失败，改用控制台模式：", err)
-			os.Exit(runHeadless(srv))
-		}
-	}
-	if err := runGUI(srv); err != nil {
-		fmt.Println("图形界面启动失败：", err)
-		fmt.Println("改用浏览器模式（--web）……")
-		os.Exit(runBrowser(srv, *webPort))
-	}
-}
-
-// runGUI 用 Wails(WebView2) 打开界面。
-func runGUI(srv *server.Server) error {
-	return wails.Run(&options.App{
-		Title:     "DP-PXE " + config.AppVersion,
-		Width:     1080,
-		Height:    820,
-		MinWidth:  960,
-		MinHeight: 660,
-		AssetServer: &assetserver.Options{
-			Assets:  webui.Dist(),
-			Handler: webui.APIHandler(srv),
-		},
-		BackgroundColour: &options.RGBA{R: 240, G: 240, B: 240, A: 1},
-		OnShutdown: func(ctx context.Context) {
-			srv.AutoCaptureStop()
-			if srv.Running() {
-				srv.Stop()
-			}
-			_ = srv.Cfg().Save()
-		},
-	})
-}
-
-// appCtx 界面窗口的上下文（无边框窗口的最小化/关闭要用它）。
-var appCtx context.Context
-
-// runClientGUI 被控端图形界面（对齐原版 DP-PXEClient 布局）。
-//
-// 窗口是无边框的：标题栏在页面里画（蓝色渐变 + 最小化/关闭），
-// 拖动靠 CSS `--wails-draggable: drag`，按钮走 /api/client/cmd。
-func runClientGUI(cli *client.Client) error {
-	go cli.RunForever()
-
-	return wails.Run(&options.App{
-		Title:            "DP-PXEClient " + config.ClientVersion,
-		Width:            700,
-		Height:           400,
-		MinWidth:         560,
-		MinHeight:        300,
-		Frameless:        true,
-		BackgroundColour: &options.RGBA{R: 247, G: 250, B: 253, A: 1},
-		AssetServer: &assetserver.Options{
-			Assets:  webui.Dist(),
-			Handler: webui.ClientAPI(cli, clientWindowAction),
-			// 被控端界面就是 client.html，把它当作首页
-			Middleware: func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path == "/" || r.URL.Path == "/index.html" {
-						r.URL.Path = "/client.html"
-					}
-					next.ServeHTTP(w, r)
-				})
-			},
-		},
-		OnStartup: func(ctx context.Context) { appCtx = ctx },
-		OnShutdown: func(ctx context.Context) {
-			cli.Stop()
-		},
-	})
-}
-
-// clientWindowAction 处理页面上的窗口按钮。
-func clientWindowAction(action string) {
-	if appCtx == nil {
-		return
-	}
-	switch action {
-	case "minimize":
-		runtime.WindowMinimise(appCtx)
-	case "maximize":
-		runtime.WindowToggleMaximise(appCtx)
-	case "close":
-		runtime.Quit(appCtx)
-	}
+	// 默认路径：Windows 先试 Wails 窗口（PE 里改用 walk 原生界面），
+	// Linux 直接走浏览器模式 —— 见 main_windows.go / main_linux.go。
+	os.Exit(runServerGUI(srv, *webPort))
 }
 
 // runHeadless 无界面模式：在 PE / 无桌面环境里直接跑全部服务。
@@ -325,7 +218,7 @@ func runBrowser(srv *server.Server, port int) int {
 
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		openBrowser(url)
 	}()
 
 	if err := serveHTTP(srv, addr); err != nil {
@@ -360,4 +253,10 @@ func writeCrash(text string) {
 	}
 	defer f.Close()
 	fmt.Fprintln(f, text)
+}
+
+// serveHTTP 浏览器模式：静态资源 + /api（两个平台共用）。
+func serveHTTP(srv *server.Server, addr string) error {
+	hs := &http.Server{Addr: addr, Handler: webui.BrowserHandler(srv)}
+	return hs.ListenAndServe()
 }

@@ -79,14 +79,3 @@ $d.Filter = ` + psQuote(filter) + `
 if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }
 `)
 }
-
-func splitLines(s string) []string {
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}

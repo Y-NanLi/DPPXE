@@ -3,8 +3,6 @@ package services
 import (
 	"net"
 	"strings"
-
-	"golang.org/x/sys/windows"
 )
 
 // setBroadcast 打开 SO_BROADCAST（Go 默认不开，发 255.255.255.255 会失败）。
@@ -13,10 +11,7 @@ func setBroadcast(conn *net.UDPConn) {
 	if err != nil {
 		return
 	}
-	_ = raw.Control(func(fd uintptr) {
-		_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_BROADCAST, 1)
-		_ = windows.SetsockoptInt(windows.Handle(fd), windows.SOL_SOCKET, windows.SO_REUSEADDR, 1)
-	})
+	_ = raw.Control(func(fd uintptr) { setBroadcastReuse(fd) })
 }
 
 // SendMagicPacket WOL 网络唤醒：由服务端发魔术包（客户端此时是关机状态）。
