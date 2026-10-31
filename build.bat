@@ -38,8 +38,8 @@ if not exist "rsrc.syso" (
     "%GO%" run github.com/akavel/rsrc@latest -manifest pe\DP-PXEClient.exe.manifest -ico assets\app.ico -o rsrc.syso -arch amd64 || goto :fail
 )
 
-echo == 编译控制端（不含 PE 原生界面，省掉 walk/win 约 2.6MB）==
-"%GO%" build -tags desktop,production -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXE.exe . || goto :fail
+echo == 编译控制端（含 servergui：PE 里用 walk 原生界面，Windows 下仍走 Wails）==
+"%GO%" build -tags "desktop,production,servergui" -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXE.exe . || goto :fail
 
 echo == 编译被控端（含 clientgui：PE 原生界面 + 已装系统 Wails 界面）==
 "%GO%" build -tags "desktop,production,clientgui" -trimpath -ldflags "-s -w -H windowsgui" -o bin\DP-PXEClient.exe . || goto :fail

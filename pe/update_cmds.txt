@@ -1,3 +1,4 @@
+add "D:/wb/h-go/go/bin/DP-PXE.exe" "/Program Files/DP-PXE/DP-PXE.exe"
 add "D:/wb/h-go/go/bin/DP-PXEClient.exe" "/Program Files/DP-PXEClient/DP-PXEClient.exe"
 add "D:/wb/h-go/rebuild/tools/wimlib/wimlib-imagex.exe" "/Windows/System32/wimlib-imagex.exe"
 add "D:/wb/h-go/rebuild/tools/wimlib/libwim-15.dll" "/Windows/System32/libwim-15.dll"

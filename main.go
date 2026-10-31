@@ -190,6 +190,19 @@ func main() {
 	if *webMode {
 		os.Exit(runBrowser(srv, *webPort))
 	}
+	// PE 里不能用 Wails：没有 WebView2，wails.Run 会弹
+	// "The WebView2 runtime is required" 的模态框，不点掉就卡死。
+	// 改用 walk 原生界面（控制端精简版）。
+	if client.IsPE() {
+		if err := server.RunNativeGUI(srv); err == nil {
+			return
+		} else {
+			ensureConsole()
+			fixConsoleCodepage()
+			fmt.Println("PE 图形界面启动失败，改用控制台模式：", err)
+			os.Exit(runHeadless(srv))
+		}
+	}
 	if err := runGUI(srv); err != nil {
 		fmt.Println("图形界面启动失败：", err)
 		fmt.Println("改用浏览器模式（--web）……")
