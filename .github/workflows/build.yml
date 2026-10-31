@@ -193,6 +193,9 @@ jobs:
           # gitee.com 从 GitHub runner（Azure）跨境访问：建连经常 10~30 秒，偶发 reset / timeout。
           # 实测 gitee.com 本身可达（首页 200），所以靠「长超时 + 多重试」扛过去。
           CURL="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 180 --retry 8 --retry-delay 8 --retry-connrefused --retry-max-time 600"
+          # 上传大文件（12~15MB）跨境很慢，180 秒不够（实测 15MB 会 0 字节超时），
+          # 单独放宽到 900 秒，并减少重试次数（每次重试都要重传整个文件）。
+          CURLUP="curl -sS --http1.1 -4 --connect-timeout 30 --max-time 900 --retry 2 --retry-delay 10 --retry-connrefused"
 
           echo "== 预检：确认仓库与令牌可用 =="
           rc=$($CURL -o /dev/null -w '%{http_code}' -G "${API}" \
@@ -295,7 +298,7 @@ jobs:
           for f in dist/DP-PXE.exe dist/DP-PXEClient.exe dist/DP-PXE-x86.exe dist/DP-PXEClient-x86.exe netboot.zip AutoCommand.zip; do
             name=$(basename "$f")
             echo "  上传 ${name}"
-            out=$($CURL -X POST "${API}/releases/${RID}/attach_files" \
+            out=$($CURLUP -X POST "${API}/releases/${RID}/attach_files" \
                     -F "access_token=${GITEE_TOKEN}" \
                     -F "file=@${f}" || true)
             if printf '%s' "$out" | jq -e '.name' > /dev/null 2>&1; then
